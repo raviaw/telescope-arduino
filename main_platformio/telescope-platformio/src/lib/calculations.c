@@ -1,3 +1,6 @@
+#include "include/types.h"
+#include "include/objects.h"
+#include "../library/calculations.h"
 /////////////////////////////////////////////////////////////////////////////
 //
 // Date conversion functions
@@ -7,7 +10,7 @@
 
 // We need to use the Hour Angle in place of the Right Ascension based on
 // what time it is. We can use our LST_hours for this.
-void hourAngle(target &t) {
+void hourAngle(target t) {
   t.HA_decimal = LST_degrees - t.RA_decimal;
 }
 
@@ -22,7 +25,7 @@ double degreesToDecimalDegrees(int d, int am, double as) {
 }
 
 // converts Declination from decimal degrees to degrees, arcminutes, and arcseconds
-void decimalDegreesToDegrees(target &t) {
+void decimalDegreesToDegrees(target t) {
   t.DEC_degrees = floor(t.DEC_decimal); // DEC in hours
   t.DEC_arcmin = (t.DEC_decimal - t.DEC_degrees) * 60;
   t.DEC_arcsec = (t.DEC_arcmin - floor(t.DEC_arcmin)) * 60;
@@ -33,7 +36,7 @@ void decimalDegreesToDegrees(target &t) {
 }
 
 // converts Right Ascension from decimal degrees to HH:MM:SS
-void rightAscensionFromDecimalToHourMinSec(target &t) {
+void rightAscensionFromDecimalToHourMinSec(target t) {
   t.RA_hour = floor(t.RA_decimal/15.0); // RA in hours
   t.RA_min = ((t.RA_decimal/15.0) - t.RA_hour) * 60;
   t.RA_sec = (t.RA_min - floor(t.RA_min)) * 60;
@@ -51,30 +54,30 @@ void calculateLocalSiderealTime() {
   // http://www.stargazing.net/kepler/altaz.html
   
   // get dates from RTC, which has been initialized by the GPS module
-  double month  = currentMonth;
-  double year  = currentYear;
-  double dayOfMonth  = currentDay;
-  double minute = currentMinute;
-  double hour  = currentHour;
-  double second  = currentSecond;
-  double daysSinceJan2000  = (double)(year - 2000) * 365.242199;  // days since Jan 1 2000 to beginning of the year
-  double daysSinceBeginYear  = (double)(month - 1) * 30.4368499;     // days since the beginning of the year
+  double M  = currentMonth;
+  double Y  = currentYear;
+  double D  = currentDay;
+  double MN = currentMinute;
+  double H  = currentHour;
+  double S  = currentSecond;
+  double A  = (double)(Y - 2000) * 365.242199;  // days since Jan 1 2000 to beginning of the year
+  double B  = (double)(M - 1) * 30.4368499;     // days since the beginning of the year
 
-  int startDayOfYearPerMonth[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-  double daysFrom2000to2020 = 7303.5; // days since J2000 to beginning of 2020
-  double jdn2000;
+  int Amo[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+  double B_2020 = 7303.5; // days since J2000 to beginning of 2020
+  double JDN2000;
   
-  if(((int)year / 4) && (month > 2)) { // if it's a leap year and past the end of February (leap day)
-    jdn2000 = startDayOfYearPerMonth[currentMonth - 1] + 1 + daysFrom2000to2020 + dayOfMonth + (hour / 24.0);
+  if(((int)Y / 4) && (M > 2)) { // if it's a leap year and past the end of February (leap day)
+    JDN2000 = Amo[currentMonth - 1] + 1 + B_2020 + D + (H/24.0);
     //JDN2000 = Amo[rtc.getMonth() - 1] + 1 + B_2020 + D-1 + (H/24.0);
   } else {  // if it's not a leap year, don't add the extra day
-    jdn2000 = startDayOfYearPerMonth[currentMonth - 1] + daysFrom2000to2020 + dayOfMonth + (hour / 24.0);
+    JDN2000 = Amo[currentMonth - 1] + B_2020 + D + (H/24.0);
     //JDN2000 = Amo[rtc.getMonth() - 1] + 1 + B_2020 + D-1 + (H/24.0);
   }
       
   //double JDN2000 = A + B + (D - 1) + H/24.0;
-  double decimal_time = hour + (minute/60) + (second/3600); // this is our UT (Universal Time) value
-  double LST = 100.46 + 0.985647 * jdn2000 + gpslon + 15 * decimal_time; // partial step to get LST in degrees
+  double decimal_time = H + (MN/60) + (S/3600); // this is our UT (Universal Time) value
+  double LST = 100.46 + 0.985647 * JDN2000 + gpslon + 15 * decimal_time; // partial step to get LST in degrees
   LST_degrees = (LST - (floor(LST/360) * 360)); // LST in degrees
   LST_hours = LST_degrees/15; // LST in hours
   LST_minutes = (LST_hours - floor(LST_hours)) * 60;
@@ -83,7 +86,7 @@ void calculateLocalSiderealTime() {
 
 // Converts the target's Equatorial Coordinates to Altazimuth Coordinates given
 // the current Local Sidereal Time and update the variables in the target object.
-void setAltazimuthCoords(target &t) {
+void setAltazimuthCoords(target t) {
   float DEG2RAD = 71.0/4068.0; // value used to convert degrees to radians
   float RAD2DEG = 4068.0/71.0; // value used to convert radians to degrees
 

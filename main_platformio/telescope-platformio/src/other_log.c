@@ -20,12 +20,6 @@ void reportStatus() {
   Serial.print(horizontalMotor.currentPosition());
   Serial.print(", ");
 
-  Serial.print("PH: ");
-  Serial.print(potHorizontal);
-  Serial.print(", PV: ");
-  Serial.print(potVertical);
-  Serial.print(", ");
-
   Serial.print("S[");
   Serial.print(startYear);
   Serial.print("/");
@@ -68,7 +62,7 @@ void reportStatus() {
   Serial.print(LST_seconds);
   Serial.print(", ");
 
-  reportObject(defaultTarget);
+  reportObject(Vega);
 
   Serial.println();
 }
@@ -106,9 +100,9 @@ void reportObject(target& obj) {
   Serial.print(obj.RA_decimal);
   Serial.print("] [ha: ");
   Serial.print(obj.HA_decimal);
-  Serial.print("] [azm: ");
-  Serial.print(obj.AZM_decimal);
   Serial.print("] [alt: ");
   Serial.print(obj.ALT_decimal);
+  Serial.print("] [azm: ");
+  Serial.print(obj.AZM_decimal);
   Serial.print("]");
 }
