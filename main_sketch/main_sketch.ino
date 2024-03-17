@@ -19,65 +19,50 @@ AccelStepper verticalMotor(AccelStepper::DRIVER, 4, 3);
 AccelStepper horizontalMotor(AccelStepper::DRIVER, 6, 5); 
 
 elapsedMillis printTime;
+elapsedMillis lcdTime;
+
+#define MODE_MENU 0 
+#define MODE_REPORT 1
+#define MODE_MOVING 2
+#define MODE_CALIBRATING 3
+#define MODE_FIND 4
+#define MODE_AZ_ALT 5
 
 // Reduction X Axis = 1/ 198
 // Reduction Z Axis = 1/ 33
 
-// DEC -> Declination
-// RA -> Right Ascension
-// ALT -> Altitude
-// AZM - Azimuth
 typedef struct {
-  String name; // name of the target
-  
-  // Predefined
-  double DEC_degrees, DEC_arcmin, DEC_arcsec;
-  // Predefined
-  double RA_hour, RA_min, RA_sec;
-  
-  // Calculated
-  double DEC_decimal, RA_decimal;   // declination and right ascension
-  // Calculated
-  double HA_decimal;
-  // Calculated
-  double ALT_decimal, AZM_decimal;  // altitude and azimuth
+  String name;
+  double ra;
+  double dec;
 } target;
 
-target polaris = {"Polaris", 89, 15, 50.78, 2, 31, 48.704};           // (Ursa Minor)
-target antares = {"Antares", -26, 25, 55.20, 16, 29, 24};             // (Scorpio)
-target arcturus = {"Arcturus", 19, 10, 56.67, 14, 15, 39};            // (Bootes)
-target betelgeuse = {"Betelgeuse", 7, 24, 25.43, 5, 55, 10};          // (Orion)
-target regulus = {"Regulus", 11, 58, 1.95, 10, 8, 22};                // (Leo)
-target spica = {"Spica", -11, 9, 40.76, 13, 25, 11};                  // (Virgo)
-target altair = {"Altair", 8, 52, 5.96, 19, 50, 46};                  // (Aquilla)
-target deneb = {"Deneb", 45, 16, 49.22, 20, 41, 25};                  // (Cygnus)
-target vega = {"Vega", 38, 47, 1.29, 18, 36, 56};                     // (Lyra)
-target andromedaGalaxy = {"Andromeda Galaxy", 41, 16, 8.76, 0, 42, 44};   // (near the Andromeda constellation)
+double hourMinArcSecToDouble(float hour, float minute, float second) {
+  if (hour < 0) {
+    return hour - (minute / 60.0) - (second / 3600.0);
+  } else {
+    return hour + (minute / 60.0) + (second / 3600.0);
+  }
+}
 
-target defaultTarget = vega;
-//target defaultTarget = { "Free", 90, 0, 0, 45, 0, 0 }
+target sirius = {"Sirius", hourMinArcSecToDouble(6, 46, 13), hourMinArcSecToDouble(-16, 45, 7.3)};
+target canopus = {"Canopus", hourMinArcSecToDouble(6, 24, 29.6), hourMinArcSecToDouble(-52, 42, 45.3)};
+target alphaCentauri = {"Alpha Centauri", hourMinArcSecToDouble(14, 41, 16.7), hourMinArcSecToDouble(-60, 55, 59.1)};
 
-// array of predefined targets
-target predefined[10] = {polaris, antares, arcturus, betelgeuse, regulus, spica, altair, deneb, vega, andromedaGalaxy};
-
-float gpslat = -22.6599734;
-float gpslon = -46.9420532;
+float gpsLatitude = -22.6599734;
+float gpsLongitude = -46.9420532;
 //unsigned long age;
-//double timenow;
+//double timenow;_
 
-// Local Sidereal Time variables
-double LST_degrees; // variable to store local side real time(LST) in degrees.
-double LST_hours;   // variable to store local side real time(LST) in decimal hours.
-double LST_minutes;
-double LST_seconds;
-
-// Buttons
-int lastButtonAction = -1;
-#define RIGHT 1
-#define UP 2
-#define DOWN 3
-#define LEFT 4
-#define SELECT 5
+// Current ra and current dec
+double ra = sirius.ra;
+double dec = sirius.dec;
+double julianDate;
+double timeOfDay;
+double gstTime;
+double lst;
+double ha;
+double azm;
 
 int startYear;
 int startMonth;
@@ -99,6 +84,11 @@ long currentSecOfDay;
 int potHorizontal;
 int potVertical;
 
+int activeMode = MODE_MENU;
+
+#define MAX_VERTICAL_SPEED 2000
+#define MAX_HORIZONTAL_SPEED 100
+
 void setup() {
   lcd.begin(16,2); //SETA A QUANTIDADE DE COLUNAS(16) E O NÚMERO DE LINHAS(2) DO DISPLAY_. EM SUMA: UMA MATRIZ DE 16 COLUNAS E 2 LINHAS
   lcd.setCursor(0,0); //SETA A POSIÇÃO EM QUE O CURSOR INCIALIZA(LINHA 1) 
@@ -106,74 +96,84 @@ void setup() {
 
   Serial.begin(115200);
 
-  parseReceivedTimeString("2024-03-17 00:38:00.123");
+  parseReceivedTimeString("2024-03-16 23:40:50.123");
 
-  // put your setup code here, to run once:
-  verticalMotor.setMaxSpeed(2000.0);   // the motor accelerates to this speed exactly without overshoot. Try other values.
+  // Limits for the motors
+  verticalMotor.setMaxSpeed(MAX_VERTICAL_SPEED);   // the motor accelerates to this speed exactly without overshoot. Try other values.
   verticalMotor.setAcceleration(100.0);   // try other acceleration rates.
-  verticalMotor.moveTo(79200); 
-  horizontalMotor.setMaxSpeed(100.0);   // the motor accelerates to this speed exactly without overshoot. Try other values.
+  horizontalMotor.setMaxSpeed(MAX_HORIZONTAL_SPEED);   // the motor accelerates to this speed exactly without overshoot. Try other values.
   horizontalMotor.setAcceleration(50.0);   // try other acceleration rates.
-  horizontalMotor.moveTo(-5000); 
 
   // getOffset(Polaris);
 }
 
 void loop() {
-  int currentButtonValue = analogRead(0);
+  calculateTime();
+
+  //
+  // Standard loop cals
+  julianDate = julianDateCalc();
+  gstTime = utcToGstCalc();
+  lst = gstToLstCalc();
+  azimuthAltitudeCalculation();
+
   potHorizontal = analogRead(1);
   potVertical = analogRead(2);
-  int newAction = -1;
-  if (currentButtonValue > 1000) {
-    // Button UP
-    currentButtonValue = 1000;
-    newAction = -1;
-  } else if (currentButtonValue < 80) {
-    newAction = RIGHT;
-  } else if (currentButtonValue < 200) {
-    newAction = UP;
-  } else if (currentButtonValue < 400) {
-    newAction = DOWN;
-  } else if (currentButtonValue < 600) {
-    newAction = LEFT;
-  } else if (currentButtonValue < 800) {
-    newAction = SELECT;
-  }
 
-  if (newAction == -1 && lastButtonAction != -1) {
-    buttonPressed(lastButtonAction);
-    lastButtonAction = -1;
-  }
+  registerButton();
+  //calculateLocalSiderealTime();
+  //updateCoords(defaultTarget);
 
-  lastButtonAction = newAction;
-
-  //calculateTime();
-  calculateLocalSiderealTime();
-  updateCoords(defaultTarget);
-
-  float verticalSpeed;
-  float horizontalSpeed;
   if (printTime >= 1000) {    // reports speed and position each second
+    printTime = 0;
     reportStatus();
-    reportLcd(defaultTarget);
   }
+  if (lcdTime >= 250) {    // reports speed and position each second
+    lcdTime = 0;
+    reportLcd();
+  }
+  
+  moveMotors();
+  
   verticalMotor.run();
   horizontalMotor.run();
 }
 
-void updateCoords(target &t) {
-  setDecimalCoords(t);
-  setAltazimuthCoords(t);
-}
+int horizontalSpeed = 0;
+int verticalSpeed = 0;
+float verticalMotorSpeed = 0.0;
+float horizontalMotorSpeed = 0.0;
 
-void setDecimalCoords(target &t) {
-  t.DEC_decimal = t.DEC_degrees + (t.DEC_arcmin/60.0) + (t.DEC_arcsec/3600.0);
-  t.RA_decimal =  15 * (t.RA_hour + (t.RA_min/60.0) + (t.RA_sec/3600.0));
-}
+void moveMotors() {
+  if(activeMode == MODE_MOVING) {
+    horizontalSpeed = translatePotValueToSpeed(potHorizontal);
+    verticalSpeed = translatePotValueToSpeed(potVertical);
+    horizontalMotorSpeed = map(horizontalSpeed, -120, +120, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
+    verticalMotorSpeed = map(verticalSpeed, -120, +120, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
+    
+    // Crawl speed
+    if (horizontalSpeed == -1) {
+      horizontalMotorSpeed = -1.0; 
+    } else if(horizontalSpeed == 1) {
+      horizontalMotorSpeed = 1.0;
+    }
+    if (verticalSpeed == -1) {
+      verticalMotorSpeed = -1.0; 
+    } else if(verticalSpeed == 1) {
+      verticalMotorSpeed = 1.0;
+    }
+    
+    horizontalMotor.setSpeed(horizontalMotorSpeed);
+    verticalMotor.setSpeed(verticalMotorSpeed);
 
-void buttonPressed(int buttonNumber) {
-  Serial.print("Button action");
-  Serial.print(buttonNumber);
+    horizontalMotor.runSpeed();
+    verticalMotor.runSpeed();
+  } else {
+    horizontalSpeed = 0;
+    verticalSpeed = 0;
+    horizontalMotorSpeed = 0;
+    verticalMotorSpeed = 0;
+  }
 }
 
 float stepsPerDegree = 1000;

@@ -5,24 +5,27 @@
 //
 
 void reportStatus() {
-  printTime = 0;
-  int verticalSpeed = verticalMotor.speed();
-  Serial.print("V: ");
-  Serial.print(verticalSpeed);
-  Serial.print("  ");
-  Serial.print(verticalMotor.currentPosition());
-  Serial.print(", ");
-  
   int horizontalSpeed = horizontalMotor.speed();
   Serial.print("H: ");
+  Serial.print(horizontalMotorSpeed);
+  Serial.print("(");
   Serial.print(horizontalSpeed);
-  Serial.print("  ");
+  Serial.print("), pos: ");
   Serial.print(horizontalMotor.currentPosition());
   Serial.print(", ");
 
-  Serial.print("PH: ");
+  int verticalSpeed = verticalMotor.speed();
+  Serial.print("V: ");
+  Serial.print(verticalMotorSpeed);
+  Serial.print("(");
+  Serial.print(verticalSpeed);
+  Serial.print("), pos: ");
+  Serial.print(verticalMotor.currentPosition());
+  Serial.print(", ");
+
+  Serial.print("Pot H: ");
   Serial.print(potHorizontal);
-  Serial.print(", PV: ");
+  Serial.print(", Pot V: ");
   Serial.print(potVertical);
   Serial.print(", ");
 
@@ -58,17 +61,37 @@ void reportStatus() {
   printPadding(currentMs, 3);
   Serial.print("], ");
 
-  Serial.print("LST: ");
-  Serial.print(LST_degrees);
-  Serial.print("|");
-  Serial.print(LST_hours);
-  Serial.print("|");
-  Serial.print(LST_minutes);
-  Serial.print("|");
-  Serial.print(LST_seconds);
-  Serial.print(", ");
-
-  reportObject(defaultTarget);
+  Serial.print("target: ");
+  Serial.print("ra [");
+  Serial.print(ra);
+  Serial.print("], ");
+  Serial.print("dec [");
+  Serial.print(dec);
+  Serial.print("], ");
+  Serial.print("julianDate [");
+  Serial.print(julianDate);
+  Serial.print("], ");
+  Serial.print("startSecOfDay [");
+  Serial.print(startSecOfDay);
+  Serial.print("], ");
+  Serial.print("currentSecOfDay [");
+  Serial.print(currentSecOfDay);
+  Serial.print("], ");
+  Serial.print("timeOfDay [");
+  Serial.print(timeOfDay);
+  Serial.print("], ");
+  Serial.print("gstTime [");
+  Serial.print(gstTime);
+  Serial.print("], ");
+  Serial.print("lst [");
+  Serial.print(lst);
+  Serial.print("], ");
+  Serial.print("ha [");
+  Serial.print(ha);
+  Serial.print("], ");
+  Serial.print("azm [");
+  Serial.print(azm);
+  Serial.print("], ");
 
   Serial.println();
 }
@@ -86,29 +109,11 @@ void printPadding(int value, int padding) {
   Serial.print(value);
 }
 
-void reportObject(target& obj) {
+void reportObject(target obj) {
   Serial.print(obj.name);
-  Serial.print(": dec deg [");
-  Serial.print(obj.DEC_degrees);
-  Serial.print("] arc [");
-  Serial.print(obj.DEC_arcmin);
-  Serial.print("] arcsec [");
-  Serial.print(obj.DEC_arcsec);
-  Serial.print("] ra hour [");
-  Serial.print(obj.RA_hour);
-  Serial.print("] min [");
-  Serial.print(obj.RA_min);
-  Serial.print("] sec [");
-  Serial.print(obj.RA_sec);
-  Serial.print("] [dec: ");
-  Serial.print(obj.DEC_decimal);
-  Serial.print("] [ra: ");
-  Serial.print(obj.RA_decimal);
-  Serial.print("] [ha: ");
-  Serial.print(obj.HA_decimal);
-  Serial.print("] [azm: ");
-  Serial.print(obj.AZM_decimal);
-  Serial.print("] [alt: ");
-  Serial.print(obj.ALT_decimal);
+  Serial.print(": ra [");
+  Serial.print(obj.ra);
+  Serial.print("] dec [");
+  Serial.print(obj.dec);
   Serial.print("]");
 }

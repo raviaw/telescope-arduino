@@ -39,7 +39,7 @@ void parseReceivedTimeString(char* timeString) {
   startSecond = atoi(second);
   startMs = atoi(ms);
   startTimeMs = millis();
-  startSecOfDay = startHour * 3600 + startMinute * 60 + startSecond;
+  startSecOfDay = (startHour * 3600L) + (startMinute * 60L) + startSecond;
 
   currentYear = startYear;
   currentMonth = startMonth;
@@ -52,17 +52,21 @@ void parseReceivedTimeString(char* timeString) {
 }
 
 void calculateTime() {
+  // startSecOfDay = (startHour * 3600) + (startMinute * 60) + startSecond;
+
   long currentTimeMillis = millis();
   long elapsedMillis = currentTimeMillis - startTimeMs;
   // 3600 seconds in hour
   // 60 seconds in minute
-  long elapsedSec = elapsedMillis / 1000;
+  long elapsedSec = elapsedMillis / 1000L;
 
   long currentTotalSec = startSecOfDay + elapsedSec;
-  long addedMschurr = elapsedMillis % 1000;
+  currentSecOfDay = currentTotalSec;
 
-  currentHour = (currentTotalSec / 3600) % 24;
-  currentMinute = (currentTotalSec % 3600) / 60;
-  currentSecond = currentTotalSec % 60;
+  currentHour = (currentTotalSec / 3600L);
+  currentMinute = (currentTotalSec % 3600L) / 60L;
+  currentSecond = currentTotalSec % 60L;
+  
+  timeOfDay = currentSecOfDay / 3600.0D;
 }
 

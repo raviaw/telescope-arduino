@@ -5,116 +5,180 @@
 //
 //
 
-// We need to use the Hour Angle in place of the Right Ascension based on
-// what time it is. We can use our LST_hours for this.
-void hourAngle(target &t) {
-  t.HA_decimal = LST_degrees - t.RA_decimal;
-}
-
-// converts Right Ascension from HH:MM:SS to degrees
-double hourMinSecToDegree(int h, int m, double s) {
-  return 15 * (h + ((double)m/60.0) + ((double)s/3600.0));
-}
-
-// converts Declination from degrees, arcminutes, and arcseconds to decimal degrees
-double degreesToDecimalDegrees(int d, int am, double as) {
-  return (d + ((double)am/60.0) + ((double)as/3600.0));
-}
-
-// converts Declination from decimal degrees to degrees, arcminutes, and arcseconds
-void decimalDegreesToDegrees(target &t) {
-  t.DEC_degrees = floor(t.DEC_decimal); // DEC in hours
-  t.DEC_arcmin = (t.DEC_decimal - t.DEC_degrees) * 60;
-  t.DEC_arcsec = (t.DEC_arcmin - floor(t.DEC_arcmin)) * 60;
-  
-  t.DEC_arcmin = floor(t.DEC_arcmin);
-
-  // this isn't quite exact, but it's very, very close
-}
-
-// converts Right Ascension from decimal degrees to HH:MM:SS
-void rightAscensionFromDecimalToHourMinSec(target &t) {
-  t.RA_hour = floor(t.RA_decimal/15.0); // RA in hours
-  t.RA_min = ((t.RA_decimal/15.0) - t.RA_hour) * 60;
-  t.RA_sec = (t.RA_min - floor(t.RA_min)) * 60;
-  
-  t.RA_min = floor(t.RA_min);
-
-  // this isn't quite exact, but it's very, very close
-}
-
-//
-// Local sidereal time is just based on the date/ time for other calculations
-//
-void calculateLocalSiderealTime() {
-  // Calculates local sidereal time based on this calculation,
-  // http://www.stargazing.net/kepler/altaz.html
-  
-  // get dates from RTC, which has been initialized by the GPS module
-  double month  = currentMonth;
-  double year  = currentYear;
-  double dayOfMonth  = currentDay;
-  double minute = currentMinute;
-  double hour  = currentHour;
-  double second  = currentSecond;
-  double daysSinceJan2000  = (double)(year - 2000) * 365.242199;  // days since Jan 1 2000 to beginning of the year
-  double daysSinceBeginYear  = (double)(month - 1) * 30.4368499;     // days since the beginning of the year
-
-  int startDayOfYearPerMonth[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-  double daysFrom2000to2020 = 7303.5; // days since J2000 to beginning of 2020
-  double jdn2000;
-  
-  if(((int)year / 4) && (month > 2)) { // if it's a leap year and past the end of February (leap day)
-    jdn2000 = startDayOfYearPerMonth[currentMonth - 1] + 1 + daysFrom2000to2020 + dayOfMonth + (hour / 24.0);
-    //JDN2000 = Amo[rtc.getMonth() - 1] + 1 + B_2020 + D-1 + (H/24.0);
-  } else {  // if it's not a leap year, don't add the extra day
-    jdn2000 = startDayOfYearPerMonth[currentMonth - 1] + daysFrom2000to2020 + dayOfMonth + (hour / 24.0);
-    //JDN2000 = Amo[rtc.getMonth() - 1] + 1 + B_2020 + D-1 + (H/24.0);
+double julianDateCalc() { //For more info see 'Practical Astronomy With Your Calculator'.
+  double thisDay = (currentDay - 1.0) + (currentSecOfDay / (3600L * 24L));
+  double gpsMonth = currentMonth;
+  double gpsYear = currentYear;
+  if (gpsMonth == 1 || gpsMonth == 2) {
+    gpsMonth = gpsMonth + 12;
+    gpsYear = gpsYear - 1;
   }
-      
-  //double JDN2000 = A + B + (D - 1) + H/24.0;
-  double decimal_time = hour + (minute/60) + (second/3600); // this is our UT (Universal Time) value
-  double LST = 100.46 + 0.985647 * jdn2000 + gpslon + 15 * decimal_time; // partial step to get LST in degrees
-  LST_degrees = (LST - (floor(LST/360) * 360)); // LST in degrees
-  LST_hours = LST_degrees/15; // LST in hours
-  LST_minutes = (LST_hours - floor(LST_hours)) * 60;
-  LST_seconds = (LST_minutes - floor(LST_minutes)) * 60;
+  // I will just trust it 
+  int a = floor ((double)gpsYear / 100.0);
+  int b = 2 - a + floor (a / 4.0);
+  long c = (365.25 * (double)gpsYear);
+  float d = floor (30.6001 * ((double)gpsMonth + 1));
+  float jd = b + c + d + (double)thisDay + 1720994.5;
+
+  return jd; //'jd' being the Julian Date.
 }
 
-// Converts the target's Equatorial Coordinates to Altazimuth Coordinates given
-// the current Local Sidereal Time and update the variables in the target object.
-void setAltazimuthCoords(target &t) {
-  float DEG2RAD = 71.0/4068.0; // value used to convert degrees to radians
-  float RAD2DEG = 4068.0/71.0; // value used to convert radians to degrees
+double utcToGstCalc() { //Converts UTC (Univeral Time) to GST (Greenwich Sidereal Time). 
+  double s = julianDate - 2451545.0;
+  double t = s / 36525.0;
+  double step1 = (2400.051336 * t);
+  double step2 = (t * t);
+  double step3 = (0.000025862 * step2);
+  double to = (6.697374558 + step1 + step3);
+  double n1 = floor (to / 24);
+  to = to - (n1 * 24);
+  double h1 = (timeOfDay * 1.002737909);
+  double n2 = floor ((to + h1) / 24.0);
+  double gst = (to + h1) - (n2 * 24.0);
+  return gst;
+}
 
-  double sin_DEC = sin(t.DEC_decimal * DEG2RAD);
-  double cos_DEC = cos(t.DEC_decimal * DEG2RAD);
+float gstToLstCalc() { //Converts GST (Greenwich Sidereal Time) to LST (Local Sidereal Time).
+  double timeVariable = gstTime; 
+  double diff = abs(gpsLongitude);
+  diff = (diff / 15.0);
+  double lst;
+  if ((gpsLongitude * -1) > 0) {
+    timeVariable = timeVariable - diff;
+  } else {
+    timeVariable = timeVariable + diff;
+  }
+  if (timeVariable > 24) {
+    lst = timeVariable - 24;
+  } else if ((timeVariable * -1) > 0) {
+    lst = timeVariable + 24;
+  } else {
+    lst = timeVariable;
+  }
   
-  double sin_LAT = sin(gpslat * DEG2RAD);
-  double cos_LAT = cos(gpslat * DEG2RAD);
+  return lst;
+}
 
-  // LST_time();   // update LST for the most accurate calculation of Horizontal coordinates
-  hourAngle(t); // this needs updated constantly, so we update it before deciding on an Altazimuth coord at that second
-  double sin_HA = sin(t.HA_decimal * DEG2RAD);
-  double cos_HA = cos(t.HA_decimal * DEG2RAD);
-
-  // formulas from http://www.stargazing.net/kepler/altaz.html#twig04a
-  t.ALT_decimal = asin( sin_DEC*sin_LAT + cos_DEC*cos_LAT*cos_HA );
-
-  double sin_ALT = sin((float)t.ALT_decimal);
-  double cos_ALT = cos((float)t.ALT_decimal);
+void azimuthAltitudeCalculation() { //This section calculates the Azimuth and the Altitude of the target object.
+  double targetRa = ra;
+  double targetDec = dec;
   
-  t.ALT_decimal *= RAD2DEG; // convert ALT back to degrees
+  targetRa = (targetRa / 15.0);
+  double h = 15.0 * (lst - targetRa);
+  h = (h / 360.0) * (2 * PI);
+  targetDec = ((targetDec / 360.0) * (2 * PI));
+  double sinDec = sin(targetDec);
+  double sinLat = sin(gpsLatitude);
+  double cosDec = cos(targetDec);
+  double cosLat = cos(gpsLatitude);
+  double jeremy = cos(h);
+  double sinAltitude = (sinDec * sinLat) + (cosDec * cosLat * jeremy);
+  double alt = asin(sinAltitude);
+  double cosAltitude = cos(alt);
+  alt = ((alt / (2 * PI)) * 360);
+  double cosAz = (sinDec - (sinLat * sinAltitude)) / (cosLat * cosAltitude);
+  double az = ((acos(cosAz)) * 4068) / 71;
+  double sinHh = sin(h);
+  if ((sinHh * -1) > 0) {
+    az = az;
+  } else {
+    az = 360.0 - az;
+  }
   
-  t.AZM_decimal = acos( (sin_DEC - sin_ALT*sin_LAT) / (cos_ALT*cos_LAT) ) * RAD2DEG;
+  ha = alt;
+  azm = az;
 
-  if(sin_HA > 0) {                          // if sin(HourAngle) is positive,
-    t.AZM_decimal = 360.0 - t.AZM_decimal;  // then the Azimuth is 360 - (AZM)
-  }                                         // otherwise, the Azimuth is AZM
-  
-  //Use to debug Altitude and Azimuth calculations
-  //SerialMonitorInterface.print("ALT: ");
-  //SerialMonitorInterface.println(t.ALT_decimal);
-  //SerialMonitorInterface.print("AZM: ");
-  //SerialMonitorInterface.println(t.AZM_decimal);
+//   if (n == 666) { //This variable will only equal 666 when the Arduino is first powered on, so it triggers the calibration sequence.
+//     centralstate = digitalRead(central);
+//     while (centralstate == LOW) { //Keep reading the potentiometer values until the central button is pressed.
+//       altpot = ads1015.readADC_SingleEnded(1);
+//       azpot = ads1015.readADC_SingleEnded(0);
+//       centralstate = digitalRead(central);
+//     }
+//     calibalt = altpot; 
+//     calibaz = azpot;
+//     polarisalt = alt;
+//     polarisaz = az;
+//     lcd.setCursor(0, 0);
+//     lcd.print("    COMPLETE    "); //Calibration sequence is complete.
+//     lcd.setCursor(0, 1);
+//     lcd.print("                ");
+//     delay(2000);
+//   }
+// 
+//   else {
+//     if ((alt * -1) > 0) { //If altitude is below 0 degrees, then the object is below the observer's horizon.
+//       lcd.setCursor(0, 1);
+//       lcd.print("IS BELOW HORIZON"); 
+//       digitalWrite(ledup, LOW);
+//       digitalWrite(leddown, LOW);
+//       digitalWrite(ledright, LOW);
+//       digitalWrite(ledleft, LOW);
+//     }
+//     else {
+//       lcd.setCursor(0, 1); //This starts the next text to be printed at a specific character on the LCD screen.
+//       lcd.print(az, 3);
+//       lcd.setCursor(7, 1);
+//       lcd.print(" / ");
+//       lcd.setCursor(10, 1);
+//       lcd.print(alt, 3);
+//       altpot = ads1015.readADC_SingleEnded(1);
+//       azpot = ads1015.readADC_SingleEnded(0);
+//       if (alt < polarisalt) {
+//         altpotgood = (calibalt + ((polarisalt - alt) * 6.47777));
+//       }
+//       else if (alt > polarisalt) {
+//         altpotgood = (calibalt - ((alt - polarisalt) * 6.47777));
+//       }
+//       if (az < polarisaz) {
+//         if (az > 180) {
+//           azpotgood = (calibaz + ((polarisaz - az) * 4.88529));
+//         }
+//         else if (az < 180) {
+//           azpotgood = (calibaz - (((az + 360) - polarisaz) * 4.88529));
+//         }
+//       }
+//       else if (az > polarisaz) {
+//         if (az > 180) {
+//           azpotgood = (calibaz + (((polarisaz + 360.0) - az) * 4.88529));
+//         }
+//         else if (az < 180) {
+//           azpotgood = (calibaz - ((az - polarisaz) * 4.88529));
+//         }
+//       }
+//       if (altpot == altpotgood) { //This section controls which of the four LEDs are lit, to indicate which direction the telescope needs to be moved in.
+//         digitalWrite(ledup, HIGH);
+//         digitalWrite(leddown, HIGH);
+//       }
+//       else {
+//         if (altpot > altpotgood) {
+//           digitalWrite(ledup, HIGH);
+//           digitalWrite(leddown, LOW);
+//         }
+//         else if (altpot < altpotgood) {
+//           digitalWrite(ledup, LOW);
+//           digitalWrite(leddown, HIGH);
+//         }
+//       }
+//       if (azpot == azpotgood) {
+//         digitalWrite(ledright, HIGH);
+//         digitalWrite(ledleft, HIGH);
+//       }
+//       else {
+//         if (azpot > azpotgood) {
+//           digitalWrite(ledright, HIGH);
+//           digitalWrite(ledleft, LOW);
+//         }
+//         else if (azpot < azpotgood) {
+//           digitalWrite(ledright, LOW);
+//           digitalWrite(ledleft, HIGH);
+//         }
+//         if (azpot == azpotgood) {
+//           digitalWrite(ledright, HIGH);
+//           digitalWrite(ledleft, HIGH); 
+//         }
+//       }
+//     }
+//   }
+//   delay(250); //Wait 250ms and the repeat.
 }
