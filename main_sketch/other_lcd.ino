@@ -46,23 +46,62 @@ void buttonSelect() {
         activeMode = MODE_AZ_ALT;
         break;
       case 1: 
-        activeMode = MODE_MOVING;
+        activeMode = MODE_MOVE_MENU;
         break;
       case 2: 
         activeMode = MODE_CALIBRATING;
+        calibratingStarIndex = 0;
         break;
       case 3: 
         activeMode = MODE_FIND;
         break;
     }
-  } else if(activeMode == MODE_MOVING) {
-    resetSpeeds();
-    activeMode = MODE_MENU;
-  } else if(activeMode == MODE_AZ_ALT) {
+  } else if( activeMode == MODE_MOVE_MENU) {
+    switch(selectedChoice) {
+      case 0: 
+        activeMode = MODE_MOVE_COORDINATES;
+        break;
+      case 1: 
+        activeMode = MODE_MOVE_MOTOR;
+        break;
+    }
+  } else if(activeMode == MODE_CALIBRATING) {
+    switch(selectedChoice) {
+      case 0:
+        calibratingTarget = sirius;
+        break;
+      case 1:
+        calibratingTarget = alphaCentauri;
+        break;
+      case 2:
+        calibratingTarget = canopus;
+        break;
+      case 3:
+        calibratingTarget = acrux;
+        break;
+    }
+    activeMode = MODE_CALIBRATE_PICKED_STAR;
+  } else if(activeMode == MODE_CALIBRATE_PICKED_STAR) {
+    activeMode = MODE_CALIBRATE_MOVING;
+  } else if(activeMode == MODE_CALIBRATE_MOVING) {
+    if (calibratingStarIndex < 2) {
+      storeCalibrateCoordinates();
+      calibratingStarIndex++;
+    }
+    activeMode = MODE_CALIBRATE_SELECTED;
+  } else if(activeMode == MODE_CALIBRATE_SELECTED) {
+    if (calibratingStarIndex == 2) {
+      storeCalibrationData();
+      activeMode = MODE_CALIBRATION_COMPLETE;
+    } else {
+      activeMode = MODE_CALIBRATING;
+      calibratingStarIndex++;
+    }  
+  } else {
     resetSpeeds();
     activeMode = MODE_MENU;
   }
-  
+    
   selectedChoice = 0;
 }
 
@@ -75,10 +114,28 @@ void reportLcd() {
   // XX.X XX.X XXX.XX
   if (activeMode == MODE_MENU) {
     drawMainMenu();
-  } else if (activeMode == MODE_MOVING) {
-    drawMoving();
+  } else if (activeMode == MODE_FIND) {
+    drawFindMenu();
+  } else if (activeMode == MODE_MOVE_MENU) {
+    drawMoveMenu();
+  } else if (activeMode == MODE_MOVE_COORDINATES) {
+    drawMovingCoordinates();
+  } else if (activeMode == MODE_MOVE_MOTOR) {
+    drawMovingMotor();
   } else if (activeMode == MODE_AZ_ALT) {
     drawAzimuthAltitude();
+  } else if (activeMode == MODE_CALIBRATING) {
+    drawCalibrateMenu();
+  } else if (activeMode == MODE_CALIBRATE_PICKED_STAR) {
+    drawCalibratePickedStar();
+  } else if (activeMode == MODE_CALIBRATE_MOVING) {
+    drawCalibrateMoving();
+  } else if (activeMode == MODE_CALIBRATE_SELECTED) {
+    drawCalibrateSelected();
+  } else if (activeMode == MODE_CALIBRATION_COMPLETE) {
+    drawCalibrationComplete();
+  } else {
+    // Don't know what to do 
   }
 
   // printNumber(5, 0, obj.DEC_degrees, 2);
@@ -99,10 +156,24 @@ void drawMainMenu() {
   // [3] MOVE#########
   // 0123456789012345
   maxChoice = 3;
-  renderMenuOptions(" AZ/ALT  CALI   ", " MOVE    FIND   ");
+  if (calibrated) {
+    renderMenuOptions(" AZ/ALT  CAL[Y] ", " MOVE    FIND   ");
+  } else {
+    renderMenuOptions(" AZ/ALT  CAL[N] ", " MOVE    FIND   ");
+  }
 }
 
-void drawMoving() {
+void drawMoveMenu() {
+  maxChoice = 1;
+  renderMenuOptions(" MOVE COORDINATE", " MOVE MOTOR    ");
+}
+
+void drawFindMenu() {
+  maxChoice = 0;
+  renderMenuOptions(" FIND NOT YET   ", " IMPLEMENTED    ");
+}
+
+void drawMovingCoordinates() {
   maxChoice = 0;
   renderMenuOptions(" < H:    V:     ","                ");
 
@@ -112,76 +183,134 @@ void drawMoving() {
   printNumber(8, 1, verticalMotor.currentPosition(), 0);
 }
 
+void drawMovingMotor() {
+  maxChoice = 0;
+  renderMenuOptions(" < H:    V:     ","                ");
+
+  printNumber(5, 0, horizontalSpeed, 0);
+  printNumber(11, 0, verticalSpeed, 0);
+  printNumber(0, 1, horizontalMotor.currentPosition(), 0);
+  printNumber(8, 1, verticalMotor.currentPosition(), 0);
+}
+
+void drawCalibrateMenu() {
+  // [0] MAIN#[2]#CALB
+  // [3] MOVE#########
+  // 0123456789012345
+  maxChoice = 4;
+  renderMenuOptions(" SIRIUS  CAN.   ", " A. CEN  ACRUX  ");
+  printNumber(15, 1, calibratingStarIndex, 0);
+}
+
+void drawCalibratePickedStar() {
+  maxChoice = 0;
+  lcd.setCursor(0, 0); 
+  lcd.print("                ");
+  lcd.setCursor(0, 1); 
+  lcd.print("                "); 
+  
+  printAt(0, 0, "Find");
+  printAt(5, 0, calibratingTarget.name);
+  lcd.print(":");
+  printFloatingPointNumber(0, 1, calibratingTarget.ra, 7, 4);
+  printFloatingPointNumber(8, 1, calibratingTarget.dec, 7, 4);
+}
+
+void drawCalibrateMoving() {
+  maxChoice = 0;
+  renderMenuOptions(" < H:    V:     ","                ");
+
+  printNumber(5, 0, horizontalSpeed, 0);
+  printNumber(11, 0, verticalSpeed, 0);
+  printNumber(0, 1, horizontalMotor.currentPosition(), 0);
+  printNumber(8, 1, verticalMotor.currentPosition(), 0);
+}
+
+void drawCalibrateSelected() {
+  maxChoice = 0;
+  lcd.setCursor(0, 0); 
+  lcd.print("Star coordinates");
+  lcd.setCursor(0, 1); 
+  lcd.print("... stored      "); 
+}
+
+void drawCalibrationComplete() {
+  maxChoice = 0;
+  lcd.setCursor(0, 0); 
+  lcd.print("Calibration is  ");
+  lcd.setCursor(0, 1); 
+  lcd.print("... completed   "); 
+}
+
 void drawAzimuthAltitude() {
-  maxChoice = 2;
+  maxChoice = 7;
   
   switch(selectedChoice) {
     // Times
     case 0:
-      printLcdPadding(0, 0, currentYear, 4, 0);
-      printAt(4, 0, "/");
-      printLcdPadding(5, 0, currentMonth, 2, 0);
-      printAt(7, 0, "/");
-      printLcdPadding(8, 0, currentDay, 2, 0);
-      printAt(10, 0, " ");
-      printLcdPadding(11, 0, currentHour, 2, 0);
-      printAt(13, 0, ":");
-      printLcdPadding(14, 0, currentMinute, 2, 0);
+      printAt(0, 0, "> DATE/ TIME:  ");
+      printLcdPadding(0, 1, currentYear, 4, 0);
+      printAt(4, 1, "/");
+      printLcdPadding(5, 1, currentMonth, 2, 0);
+      printAt(7, 1, "/");
+      printLcdPadding(8, 1, currentDay, 2, 0);
+      printAt(10, 1, " ");
+      printLcdPadding(11, 1, currentHour, 2, 0);
+      printAt(13, 1, ":");
+      printLcdPadding(14, 1, currentMinute, 2, 0);
 //       lcd.print(":");
 //       printPadding(currentSecond, 2);
 //       lcd.print(".");
 //       printPadding(currentMs, 3);
-      
-      printLcdPadding(0, 1, currentSecOfDay, 5, 0);
-      printLcdPadding(6, 1, timeOfDay * 10000.0, 8, 0);
       break;
     case 1:
-      printAt(0, 0, "                ");
-      printLcdPadding(0, 0, ra * 100L, 7, 0);
-      printLcdPadding(8, 0, dec * 100L, 7, 0);
+      printAt(0, 0, "> SEC/D T/DAY:  ");
       printAt(0, 1, "                ");
-      printLcdPadding(0, 1, ha * 1000L, 7, 0);
-      printLcdPadding(8, 1, azm * 1000L, 7, 0);
+      printNumber(0, 1, currentSecOfDay, 5);
+      printFloatingPointNumber(6, 1, timeOfDay, 8, 6);
       break;
     case 2:
-      printAt(0, 0, "JLN:            ");
-      printLcdPadding(4, 0, julianDate, 10, 0);
+      printAt(0, 0, "> JULIAN DATE:  ");
       printAt(0, 1, "                ");
-      printLcdPadding(0, 1, lst * 100L, 5, 0);
-      printLcdPadding(6, 1, gstTime * 100L, 5, 0);
+      printFloatingPointNumber(1, 1, julianDate, 10, 2);
+      break;
+    case 3:
+      printAt(0, 0, "> LST/ GMT:     ");
+      printAt(0, 1, "                ");
+      printFloatingPointNumber(0, 1, lst, 7, 5);
+      printFloatingPointNumber(8, 1, gstTime, 7, 5);
+      break;
+    case 4:
+      printAt(0, 0, "> RA/ DEC:       ");
+      printAt(0, 1, "                ");
+      printFloatingPointNumber(0, 1, ra, 7, 5);
+      printFloatingPointNumber(8, 1, dec, 7, 5);
+      break;
+    case 5:
+      printAt(0, 0, "> HA/ AZM:      ");
+      printAt(0, 1, "                ");
+      printFloatingPointNumber(0, 1, ha, 7, 4);
+      printFloatingPointNumber(8, 1, azm, 7, 4);
+      break;
+    case 6:
+      printAt(0, 0, "> HRZ M POS:    ");
+      printAt(0, 1, "                ");
+      printFloatingPointNumber(1, 1, horizontalMotor.currentPosition(), 14, 0);
+      break;
+    case 7:
+      printAt(0, 0, "> VER M POS:    ");
+      printAt(0, 1, "                ");
+      printFloatingPointNumber(1, 1, verticalMotor.currentPosition(), 14, 0);
       break;
   }
   
-  lcd.setCursor(15, 1);
+  lcd.setCursor(15, 0);
   lcd.print(selectedChoice);
 }
 
 void printAt(int horizontalPosition, int verticalPosition, String text) {
   lcd.setCursor(horizontalPosition, verticalPosition);
   lcd.print(text);
-}
-
-void printLcdPadding(int horizontalPosition, int verticalPosition, long value, int padding, int decimalPoints) {
-  lcd.setCursor(horizontalPosition, verticalPosition);
-
-  int len;
-  if (value == 0) {
-    len = 1;
-  } else {
-    len = floor(log10(value)) + 1;
-  }
-  if (decimalPoints > 0) {
-    len += decimalPoints + 1;
-  }
-  int negative = 0;
-  if(value < 0) {
-    padding--;
-    lcd.print("-");
-  }
-  for (int i = 0; i < padding - len; i++) {
-    lcd.print("0");
-  }
-  lcd.print(abs(value));
 }
 
 void resetSpeeds() {
@@ -214,24 +343,37 @@ void renderMenuOptions(String line1, String line2) {
   lcd.print(selectedChoice);
 }
 
-void printNumber(int horizontalPosition, int verticalPosition, double number, int totalDigits) {
+void printLcdPadding(int horizontalPosition, int verticalPosition, double value, int padding, int decimalPoints) {
+  lcd.setCursor(horizontalPosition, verticalPosition);
+
   int len;
-  if (number == 0) {
+  if (value == 0) {
     len = 1;
   } else {
-    len = floor(log10(abs(number))) + 1;
+    len = floor(log10(value)) + 1;
   }
-  if (number < 0) {
-    len++;
+  if (decimalPoints > 0) {
+    len += decimalPoints + 1;
   }
+  int negative = 0;
+  if(value < 0) {
+    padding--;
+    lcd.print("-");
+  }
+  for (int i = 0; i < padding - len; i++) {
+    lcd.print("0");
+  }
+  lcd.print(abs(value));
+}
 
+void printNumber(int horizontalPosition, int verticalPosition, double number, int totalDigits) {
   lcd.setCursor(horizontalPosition, verticalPosition); 
-  // Not much we can do about this case
-  if (len >= totalDigits -1)  {
-    lcd.print(number, 0);
-  } else {
-    lcd.print(number, totalDigits - len);
-  }
+  lcd.print(number, 0);
+}
+
+void printFloatingPointNumber(int horizontalPosition, int verticalPosition, double number, int totalDigits, int floatingPointDigits) {
+  lcd.setCursor(horizontalPosition, verticalPosition); 
+  lcd.print(number, floatingPointDigits);
 }
 
 void buttonPressed(int buttonNumber) {
@@ -263,7 +405,7 @@ void buttonRight() {
 void buttonUp() {
   selectedChoice --;
   if (selectedChoice < 0) {
-    selectedChoice = maxChoice - 1;
+    selectedChoice = maxChoice;
   }
 }
 void buttonDown() {

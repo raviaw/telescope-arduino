@@ -1,7 +1,7 @@
 #include <AccelStepper.h>
 #include <elapsedMillis.h>
 
-AccelStepper verticalMotor(AccelStepper::DRIVER, 4, 3); 
+AccelStepper verticalMotor(AccelStepper::DRIVER, 10, 11); 
 AccelStepper horizontalMotor(AccelStepper::DRIVER, 6, 5); 
 
 elapsedMillis printTime;

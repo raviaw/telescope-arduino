@@ -5,21 +5,28 @@
 //
 
 void reportStatus() {
-  int horizontalSpeed = horizontalMotor.speed();
-  Serial.print("H: ");
+  Serial.print("T: [");
+  Serial.print(loopsPerSec);
+  Serial.print("], ");
+  
+  Serial.print("H: float m. speed: ");
   Serial.print(horizontalMotorSpeed);
-  Serial.print("(");
+  Serial.print(", speed: ");
   Serial.print(horizontalSpeed);
-  Serial.print("), pos: ");
+  Serial.print(", m. speed(): ");
+  Serial.print(horizontalMotor.speed());
+  Serial.print(", pos: ");
   Serial.print(horizontalMotor.currentPosition());
   Serial.print(", ");
 
   int verticalSpeed = verticalMotor.speed();
-  Serial.print("V: ");
+  Serial.print("V: float m. speed: ");
   Serial.print(verticalMotorSpeed);
-  Serial.print("(");
+  Serial.print(", speed: ");
   Serial.print(verticalSpeed);
-  Serial.print("), pos: ");
+  Serial.print(", m. speed(): ");
+  Serial.print(verticalMotor.speed());
+  Serial.print(", pos: ");
   Serial.print(verticalMotor.currentPosition());
   Serial.print(", ");
 

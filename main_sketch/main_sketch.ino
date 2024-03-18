@@ -12,21 +12,36 @@
 #include <AccelStepper.h>
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
- 
+
+#include <SPI.h>
+  
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7); 
 
-AccelStepper verticalMotor(AccelStepper::DRIVER, 4, 3); 
-AccelStepper horizontalMotor(AccelStepper::DRIVER, 6, 5); 
+AccelStepper verticalMotor(AccelStepper::DRIVER, 10, 11); 
+AccelStepper horizontalMotor(AccelStepper::DRIVER, 12, 13); 
 
 elapsedMillis printTime;
 elapsedMillis lcdTime;
+elapsedMillis calcTime;
 
 #define MODE_MENU 0 
 #define MODE_REPORT 1
-#define MODE_MOVING 2
+#define MODE_MOVE_MENU 2
 #define MODE_CALIBRATING 3
 #define MODE_FIND 4
 #define MODE_AZ_ALT 5
+#define MODE_MOVE_COORDINATES 7
+#define MODE_MOVE_MOTOR 8
+#define MODE_CALIBRATE_PICKED_STAR 9
+#define MODE_CALIBRATE_MOVING 10
+#define MODE_CALIBRATE_SELECTED 11
+#define MODE_CALIBRATION_COMPLETE 12
+
+const int LEDMATRIX_SEGMENTS = 1;
+const int SEGMENT_WIDTH = 8;
+const int LEDMATRIX_WIDTH = LEDMATRIX_SEGMENTS * SEGMENT_WIDTH;
+
+const uint8_t LEDMATRIX_CS_PIN = 31;
 
 // Reduction X Axis = 1/ 198
 // Reduction Z Axis = 1/ 33
@@ -36,6 +51,16 @@ typedef struct {
   double ra;
   double dec;
 } target;
+
+typedef struct {
+  double ra;
+  double dec;
+  double lst;
+  double ha;
+  double azm;
+  long horizontalPosition;
+  long verticalPosition;
+} calibrationPoint;
 
 double hourMinArcSecToDouble(float hour, float minute, float second) {
   if (hour < 0) {
@@ -48,6 +73,11 @@ double hourMinArcSecToDouble(float hour, float minute, float second) {
 target sirius = {"Sirius", hourMinArcSecToDouble(6, 46, 13), hourMinArcSecToDouble(-16, 45, 7.3)};
 target canopus = {"Canopus", hourMinArcSecToDouble(6, 24, 29.6), hourMinArcSecToDouble(-52, 42, 45.3)};
 target alphaCentauri = {"Alpha Centauri", hourMinArcSecToDouble(14, 41, 16.7), hourMinArcSecToDouble(-60, 55, 59.1)};
+target mimosa = {"Mimosa", hourMinArcSecToDouble(12, 47, 44), hourMinArcSecToDouble(-59, 41, 19)};
+target acrux = {"Acrux", hourMinArcSecToDouble(12, 26, 35.89), hourMinArcSecToDouble(-63, 5, 56.7343)};
+// target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
+
+target calibratingTarget;
 
 float gpsLatitude = -22.6599734;
 float gpsLongitude = -46.9420532;
@@ -86,13 +116,29 @@ int potVertical;
 
 int activeMode = MODE_MENU;
 
-#define MAX_VERTICAL_SPEED 2000
+int calibratingStarIndex = 0;
+calibrationPoint calibrationPoint0;
+calibrationPoint calibrationPoint1;
+calibrationPoint calibrationPoint2;
+
+int horizontalSpeed = 0;
+int verticalSpeed = 0;
+float verticalMotorSpeed = 0.0;
+float horizontalMotorSpeed = 0.0;
+
+int loopsPerSec = 0;
+
+#define MAX_VERTICAL_SPEED 500
 #define MAX_HORIZONTAL_SPEED 100
 
+int calibrated = 0;
+
 void setup() {
-  lcd.begin(16,2); //SETA A QUANTIDADE DE COLUNAS(16) E O NÚMERO DE LINHAS(2) DO DISPLAY_. EM SUMA: UMA MATRIZ DE 16 COLUNAS E 2 LINHAS
-  lcd.setCursor(0,0); //SETA A POSIÇÃO EM QUE O CURSOR INCIALIZA(LINHA 1) 
-  lcd.print("TELESCOPE"); 
+  lcd.begin(16, 2);
+  lcd.setCursor(0, 0);
+  lcd.print("INITIALIZING...."); 
+  lcd.setCursor(0, 1);
+  lcd.print("    ...TELESCOPE"); 
 
   Serial.begin(115200);
 
@@ -100,52 +146,85 @@ void setup() {
 
   // Limits for the motors
   verticalMotor.setMaxSpeed(MAX_VERTICAL_SPEED);   // the motor accelerates to this speed exactly without overshoot. Try other values.
-  verticalMotor.setAcceleration(100.0);   // try other acceleration rates.
+  verticalMotor.setAcceleration(50.0);   // try other acceleration rates.
   horizontalMotor.setMaxSpeed(MAX_HORIZONTAL_SPEED);   // the motor accelerates to this speed exactly without overshoot. Try other values.
   horizontalMotor.setAcceleration(50.0);   // try other acceleration rates.
 
   // getOffset(Polaris);
+  horizontalMotor.moveTo(0);
+  verticalMotor.moveTo(0);
 }
 
 void loop() {
   calculateTime();
 
-  //
-  // Standard loop cals
-  julianDate = julianDateCalc();
-  gstTime = utcToGstCalc();
-  lst = gstToLstCalc();
-  azimuthAltitudeCalculation();
+  if (calcTime > 100) {
+    //
+    // Standard loop cals
+    julianDate = julianDateCalc();
+    gstTime = utcToGstCalc();
+    lst = gstToLstCalc();
+    azimuthAltitudeCalculation();
 
-  potHorizontal = analogRead(1);
-  potVertical = analogRead(2);
+    potHorizontal = analogRead(1);
+    potVertical = analogRead(2);
+    
+    calcTime = 0;
+  
+     moveMotors();
+  }
 
   registerButton();
   //calculateLocalSiderealTime();
   //updateCoords(defaultTarget);
 
+  loopsPerSec++;
   if (printTime >= 1000) {    // reports speed and position each second
     printTime = 0;
     reportStatus();
+    loopsPerSec = 0;
   }
   if (lcdTime >= 250) {    // reports speed and position each second
     lcdTime = 0;
     reportLcd();
   }
+
+//  verticalMotor.run();
   
-  moveMotors();
-  
-  verticalMotor.run();
-  horizontalMotor.run();
+  if (calibrated) {
+    horizontalMotor.run();
+    verticalMotor.run();
+  } else {
+    horizontalMotor.runSpeed();
+    verticalMotor.runSpeed();
+  }
 }
 
-int horizontalSpeed = 0;
-int verticalSpeed = 0;
-float verticalMotorSpeed = 0.0;
-float horizontalMotorSpeed = 0.0;
+void storeCalibrateCoordinates() {
+  calibrationPoint usePoint;
+  if (calibratingStarIndex == 0) {
+    usePoint = calibrationPoint0;
+  } else if (calibratingStarIndex == 1) {
+    usePoint = calibrationPoint1;
+  } else {
+    usePoint = calibrationPoint2;
+  }  
+  
+  usePoint.ra = ra;
+  usePoint.dec = dec;
+  usePoint.lst = lst;
+  usePoint.ha = ha;
+  usePoint.azm = azm;
+  usePoint.horizontalPosition = horizontalMotor.currentPosition(); 
+  usePoint.verticalPosition = verticalMotor.currentPosition(); 
+}
+
+void storeCalibrationData() {
+  calibrated = 1;
+}
 
 void moveMotors() {
-  if(activeMode == MODE_MOVING) {
+  if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
     horizontalSpeed = translatePotValueToSpeed(potHorizontal);
     verticalSpeed = translatePotValueToSpeed(potVertical);
     horizontalMotorSpeed = map(horizontalSpeed, -120, +120, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
@@ -162,18 +241,15 @@ void moveMotors() {
     } else if(verticalSpeed == 1) {
       verticalMotorSpeed = 1.0;
     }
-    
-    horizontalMotor.setSpeed(horizontalMotorSpeed);
-    verticalMotor.setSpeed(verticalMotorSpeed);
-
-    horizontalMotor.runSpeed();
-    verticalMotor.runSpeed();
   } else {
     horizontalSpeed = 0;
     verticalSpeed = 0;
     horizontalMotorSpeed = 0;
     verticalMotorSpeed = 0;
   }
+
+  horizontalMotor.setSpeed(horizontalMotorSpeed);
+  verticalMotor.setSpeed(verticalMotorSpeed);
 }
 
 float stepsPerDegree = 1000;
