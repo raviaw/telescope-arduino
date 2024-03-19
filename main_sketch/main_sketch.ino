@@ -9,20 +9,25 @@
     Star Track - Arduino Powered Star Pointer and Tracker https://www.instructables.com/id/Star-Track-Arduino-Powered-Star-Pointer-and-Tracke/
     Arduino Star-Finder for Telescopes                    https://www.instructables.com/id/Arduino-Star-Finder-for-Telescopes/
 */
-#include <AccelStepper.h>
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
+#include "FastAccelStepper.h"
 
 #include <SPI.h>
   
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7); 
+LiquidCrystal lcd(11, 12, 4, 5, 9, 10); 
 
-AccelStepper verticalMotor(AccelStepper::DRIVER, 10, 11); 
-AccelStepper horizontalMotor(AccelStepper::DRIVER, 12, 13); 
+FastAccelStepperEngine engine = FastAccelStepperEngine();
+FastAccelStepper *verticalMotor = NULL;
+FastAccelStepper *horizontalMotor = NULL;
+
+// AccelStepper verticalMotor(AccelStepper::DRIVER, 10, 11); 
+// AccelStepper horizontalMotor(AccelStepper::DRIVER, 12, 13); 
 
 elapsedMillis printTime;
 elapsedMillis lcdTime;
 elapsedMillis calcTime;
+elapsedMillis ledTime;
 
 #define MODE_MENU 0 
 #define MODE_REPORT 1
@@ -36,12 +41,6 @@ elapsedMillis calcTime;
 #define MODE_CALIBRATE_MOVING 10
 #define MODE_CALIBRATE_SELECTED 11
 #define MODE_CALIBRATION_COMPLETE 12
-
-const int LEDMATRIX_SEGMENTS = 1;
-const int SEGMENT_WIDTH = 8;
-const int LEDMATRIX_WIDTH = LEDMATRIX_SEGMENTS * SEGMENT_WIDTH;
-
-const uint8_t LEDMATRIX_CS_PIN = 31;
 
 // Reduction X Axis = 1/ 198
 // Reduction Z Axis = 1/ 33
@@ -85,8 +84,8 @@ float gpsLongitude = -46.9420532;
 //double timenow;_
 
 // Current ra and current dec
-double ra = sirius.ra;
-double dec = sirius.dec;
+double ra = 10.0;
+double dec = -20.0;
 double julianDate;
 double timeOfDay;
 double gstTime;
@@ -114,6 +113,15 @@ long currentSecOfDay;
 int potHorizontal;
 int potVertical;
 
+long ha1;
+long ha2;
+long haMotor1;
+long haMotor2;
+long azm1;
+long azm2;
+long azmMotor1;
+long azmMotor2;
+
 int activeMode = MODE_MENU;
 
 int calibratingStarIndex = 0;
@@ -126,12 +134,18 @@ int verticalSpeed = 0;
 float verticalMotorSpeed = 0.0;
 float horizontalMotorSpeed = 0.0;
 
+float horizontalCoordinateSpeed = 0;
+float verticalCoordinateSpeed = 0;
+
 int loopsPerSec = 0;
 
-#define MAX_VERTICAL_SPEED 500
-#define MAX_HORIZONTAL_SPEED 100
+#define MAX_VERTICAL_SPEED 15000
+#define MAX_HORIZONTAL_SPEED 500
 
 int calibrated = 0;
+
+int ledPower = 0;
+int ledIncrement = 3;
 
 void setup() {
   lcd.begin(16, 2);
@@ -144,21 +158,47 @@ void setup() {
 
   parseReceivedTimeString("2024-03-16 23:40:50.123");
 
-  // Limits for the motors
-  verticalMotor.setMaxSpeed(MAX_VERTICAL_SPEED);   // the motor accelerates to this speed exactly without overshoot. Try other values.
-  verticalMotor.setAcceleration(50.0);   // try other acceleration rates.
-  horizontalMotor.setMaxSpeed(MAX_HORIZONTAL_SPEED);   // the motor accelerates to this speed exactly without overshoot. Try other values.
-  horizontalMotor.setAcceleration(50.0);   // try other acceleration rates.
-
-  // getOffset(Polaris);
-  horizontalMotor.moveTo(0);
-  verticalMotor.moveTo(0);
+  engine.init();
+  verticalMotor = engine.stepperConnectToPin(6);
+  if (verticalMotor) {
+    verticalMotor->setDirectionPin(22);
+    verticalMotor->setAcceleration(1500);
+    verticalMotor->setAutoEnable(true);
+  }
+  horizontalMotor = engine.stepperConnectToPin(7);
+  if (horizontalMotor) {
+    horizontalMotor->setDirectionPin(24);
+    horizontalMotor->setAcceleration(100);
+    horizontalMotor->setAutoEnable(true);
+  }
+  
+  pinMode(13, OUTPUT);
 }
 
 void loop() {
+  if(verticalMotor == NULL || horizontalMotor == NULL) {
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+    lcd.setCursor(0, 0);
+    lcd.print("                ");
+
+    if (verticalMotor == NULL) {
+      lcd.setCursor(0, 0);
+      lcd.print("VERT");
+    }
+    if (horizontalMotor == NULL) {
+      lcd.setCursor(8, 0);
+      lcd.print("HORZ");
+    }
+    lcd.setCursor(0, 1);
+    lcd.print("STEPPER FAILURE");
+    delay(500);
+    return;
+  }
+  
   calculateTime();
 
-  if (calcTime > 100) {
+  if (calcTime > 25) {
     //
     // Standard loop cals
     julianDate = julianDateCalc();
@@ -169,9 +209,9 @@ void loop() {
     potHorizontal = analogRead(1);
     potVertical = analogRead(2);
     
+    moveMotors();
+
     calcTime = 0;
-  
-     moveMotors();
   }
 
   registerButton();
@@ -189,67 +229,132 @@ void loop() {
     reportLcd();
   }
 
-//  verticalMotor.run();
-  
-  if (calibrated) {
-    horizontalMotor.run();
-    verticalMotor.run();
-  } else {
-    horizontalMotor.runSpeed();
-    verticalMotor.runSpeed();
+  if (ledTime > 10) {
+    ledPower += ledIncrement;
+    if (ledIncrement > 0 && ledPower > 255) {
+      ledIncrement *= -1;
+    } else if(ledIncrement < 0 && ledPower < 0) {
+      ledIncrement *= -1;
+    }
+    analogWrite(13, ledPower);
+    ledTime = 0;
   }
 }
 
 void storeCalibrateCoordinates() {
-  calibrationPoint usePoint;
+  calibrationPoint* usePoint;
   if (calibratingStarIndex == 0) {
-    usePoint = calibrationPoint0;
+    usePoint = &calibrationPoint0;
   } else if (calibratingStarIndex == 1) {
-    usePoint = calibrationPoint1;
+    usePoint = &calibrationPoint1;
   } else {
-    usePoint = calibrationPoint2;
+    usePoint = &calibrationPoint2;
   }  
   
-  usePoint.ra = ra;
-  usePoint.dec = dec;
-  usePoint.lst = lst;
-  usePoint.ha = ha;
-  usePoint.azm = azm;
-  usePoint.horizontalPosition = horizontalMotor.currentPosition(); 
-  usePoint.verticalPosition = verticalMotor.currentPosition(); 
+  usePoint->ra = ra;
+  usePoint->dec = dec;
+  usePoint->lst = lst;
+  usePoint->ha = ha;
+  usePoint->azm = azm;
+  usePoint->horizontalPosition = horizontalMotor->getCurrentPosition(); 
+  usePoint->verticalPosition = verticalMotor->getCurrentPosition(); 
 }
 
 void storeCalibrationData() {
   calibrated = 1;
+  ledIncrement = 1;
+
+  ha1 = calibrationPoint0.ha * 1000.0;
+  ha2 = calibrationPoint1.ha * 1000.0;
+  haMotor1 = calibrationPoint0.verticalPosition;
+  haMotor2 = calibrationPoint1.verticalPosition;
+  azm1 = calibrationPoint0.azm * 1000.0;
+  azm2 = calibrationPoint1.azm * 1000.0;
+  azmMotor1 = calibrationPoint0.horizontalPosition;
+  azmMotor2 = calibrationPoint1.horizontalPosition;
+  
+  ha = calibrationPoint1.ha;
+  azm = calibrationPoint1.azm;
 }
 
 void moveMotors() {
-  if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
-    horizontalSpeed = translatePotValueToSpeed(potHorizontal);
-    verticalSpeed = translatePotValueToSpeed(potVertical);
-    horizontalMotorSpeed = map(horizontalSpeed, -120, +120, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
-    verticalMotorSpeed = map(verticalSpeed, -120, +120, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
+  if (calibrated) {
+    if(activeMode == MODE_MOVE_COORDINATES) {
+      int horizontalPotValue = translatePotValueToSpeed(potHorizontal);
+      int verticalPotValue = translatePotValueToSpeed(potVertical);
+      horizontalCoordinateSpeed = map(horizontalSpeed, -120, +120, -1000, +1000) / 100000.0;
+      verticalCoordinateSpeed = map(verticalSpeed, -120, +120, -1000, +1000) / 100000.0;
+      ra += horizontalCoordinateSpeed;
+      dec += verticalCoordinateSpeed;
+    } else if (activeMode == MODE_MOVE_MENU) {
+      // tracking
+    }
     
-    // Crawl speed
-    if (horizontalSpeed == -1) {
-      horizontalMotorSpeed = -1.0; 
-    } else if(horizontalSpeed == 1) {
-      horizontalMotorSpeed = 1.0;
-    }
-    if (verticalSpeed == -1) {
-      verticalMotorSpeed = -1.0; 
-    } else if(verticalSpeed == 1) {
-      verticalMotorSpeed = 1.0;
-    }
+    long newVerticalPos = map(ha * 1000, ha1, ha2, haMotor1, azmMotor1);
+    long newHorizontalPos = map(ha * 1000, azm1, azm2, haMotor1, azmMotor2);
+    
+    verticalMotor->moveTo(newVerticalPos);
+    horizontalMotor->moveTo(newHorizontalPos);
   } else {
-    horizontalSpeed = 0;
-    verticalSpeed = 0;
-    horizontalMotorSpeed = 0;
-    verticalMotorSpeed = 0;
-  }
+    if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
+      horizontalSpeed = translatePotValueToSpeed(potHorizontal);
+      verticalSpeed = translatePotValueToSpeed(potVertical);
+      horizontalMotorSpeed = map(horizontalSpeed, -120, +120, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
+      verticalMotorSpeed = map(verticalSpeed, -120, +120, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
+    
+      // Crawl speed
+      if (horizontalSpeed == -1) {
+        horizontalMotorSpeed = -1.0; 
+      } else if(horizontalSpeed == 1) {
+        horizontalMotorSpeed = 1.0;
+      }
+      if (verticalSpeed == -1) {
+        verticalMotorSpeed = -1.0; 
+      } else if(verticalSpeed == 1) {
+        verticalMotorSpeed = 1.0;
+      }
+    } else {
+      horizontalSpeed = 0;
+      verticalSpeed = 0;
+      horizontalMotorSpeed = 0;
+      verticalMotorSpeed = 0;
+    }
 
-  horizontalMotor.setSpeed(horizontalMotorSpeed);
-  verticalMotor.setSpeed(verticalMotorSpeed);
+    int horizontalMultiplier = 1;
+    int verticalMultiplier = 1;
+    if (horizontalMotorSpeed < 0) {
+      horizontalMultiplier = -1; 
+    }
+    if (verticalMotorSpeed < 0) {
+      verticalMultiplier = -1; 
+    }
+
+    if(horizontalMotorSpeed == 0 || horizontalSpeed == 0) {
+      horizontalMotor->stopMove();
+    } else {
+      horizontalMotor->setSpeedInHz(abs(horizontalMotorSpeed));
+      horizontalMotor->applySpeedAcceleration();
+      if (horizontalMultiplier > 0) {
+        horizontalMotor->runForward();
+      } else {
+        horizontalMotor->runBackward();
+      }
+    }
+
+    if(verticalMotorSpeed == 0 || verticalSpeed == 0) {
+      verticalMotor->stopMove();
+    } else {
+      verticalMotor->setSpeedInHz(abs(verticalMotorSpeed));
+      verticalMotor->applySpeedAcceleration();
+      if (verticalMultiplier > 0) {
+        verticalMotor->runForward();
+      } else {
+        verticalMotor->runBackward();
+      }
+    }
+  }
+//   horizontalMotor->move(horizontalMotorSpeed * horizontalMultiplier);
+//   verticalMotor->move(verticalMotorSpeed * verticalMultiplier);
 }
 
 float stepsPerDegree = 1000;

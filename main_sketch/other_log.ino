@@ -8,26 +8,30 @@ void reportStatus() {
   Serial.print("T: [");
   Serial.print(loopsPerSec);
   Serial.print("], ");
+
+  int currentButtonValue = analogRead(7);
+  Serial.print("B: [");
+  Serial.print(currentButtonValue);
+  Serial.print("], ");
   
   Serial.print("H: float m. speed: ");
   Serial.print(horizontalMotorSpeed);
   Serial.print(", speed: ");
   Serial.print(horizontalSpeed);
   Serial.print(", m. speed(): ");
-  Serial.print(horizontalMotor.speed());
+  Serial.print(horizontalMotor->getCurrentSpeedInMilliHz());
   Serial.print(", pos: ");
-  Serial.print(horizontalMotor.currentPosition());
+  Serial.print(horizontalMotor->getCurrentPosition());
   Serial.print(", ");
 
-  int verticalSpeed = verticalMotor.speed();
   Serial.print("V: float m. speed: ");
   Serial.print(verticalMotorSpeed);
   Serial.print(", speed: ");
   Serial.print(verticalSpeed);
   Serial.print(", m. speed(): ");
-  Serial.print(verticalMotor.speed());
+  Serial.print(verticalMotor->getCurrentSpeedInMilliHz());
   Serial.print(", pos: ");
-  Serial.print(verticalMotor.currentPosition());
+  Serial.print(verticalMotor->getCurrentPosition());
   Serial.print(", ");
 
   Serial.print("Pot H: ");
@@ -66,6 +70,32 @@ void reportStatus() {
   printPadding(currentSecond, 2);
   Serial.print(".");
   printPadding(currentMs, 3);
+  Serial.print("], ");
+
+  Serial.print("Calibration: ");
+  Serial.print("ha1 [");
+  Serial.print(ha1);
+  Serial.print("], ");
+  Serial.print("ha2 [");
+  Serial.print(ha2);
+  Serial.print("], ");
+  Serial.print("haMotor1 [");
+  Serial.print(haMotor1);
+  Serial.print("], ");
+  Serial.print("haMotor2 [");
+  Serial.print(haMotor2);
+  Serial.print("], ");
+  Serial.print("azm1 [");
+  Serial.print(azm1);
+  Serial.print("], ");
+  Serial.print("azm2 [");
+  Serial.print(azm2);
+  Serial.print("], ");
+  Serial.print("azmMotor1 [");
+  Serial.print(azmMotor1);
+  Serial.print("], ");
+  Serial.print("azmMotor2 [");
+  Serial.print(azmMotor2);
   Serial.print("], ");
 
   Serial.print("target: ");

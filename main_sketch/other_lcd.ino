@@ -11,7 +11,7 @@ int maxChoice = 0;
 void registerButton() {
   int newAction = -1;
 
-  int currentButtonValue = analogRead(0);
+  int currentButtonValue = analogRead(7);
   if (currentButtonValue > 1000) {
     // Button UP
     currentButtonValue = 1000;
@@ -44,16 +44,20 @@ void buttonSelect() {
       // 3 - FIND
       case 0: 
         activeMode = MODE_AZ_ALT;
+        ledIncrement = 10;
         break;
       case 1: 
         activeMode = MODE_MOVE_MENU;
+        ledIncrement = 7;
         break;
       case 2: 
         activeMode = MODE_CALIBRATING;
         calibratingStarIndex = 0;
+        ledIncrement = 3;
         break;
       case 3: 
         activeMode = MODE_FIND;
+        ledIncrement = 2;
         break;
     }
   } else if( activeMode == MODE_MOVE_MENU) {
@@ -63,6 +67,7 @@ void buttonSelect() {
         break;
       case 1: 
         activeMode = MODE_MOVE_MOTOR;
+        calibrated = 0;
         break;
     }
   } else if(activeMode == MODE_CALIBRATING) {
@@ -179,8 +184,8 @@ void drawMovingCoordinates() {
 
   printNumber(5, 0, horizontalSpeed, 0);
   printNumber(11, 0, verticalSpeed, 0);
-  printNumber(0, 1, horizontalMotor.currentPosition(), 0);
-  printNumber(8, 1, verticalMotor.currentPosition(), 0);
+  printNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
+  printNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
 }
 
 void drawMovingMotor() {
@@ -189,8 +194,8 @@ void drawMovingMotor() {
 
   printNumber(5, 0, horizontalSpeed, 0);
   printNumber(11, 0, verticalSpeed, 0);
-  printNumber(0, 1, horizontalMotor.currentPosition(), 0);
-  printNumber(8, 1, verticalMotor.currentPosition(), 0);
+  printNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
+  printNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
 }
 
 void drawCalibrateMenu() {
@@ -222,8 +227,8 @@ void drawCalibrateMoving() {
 
   printNumber(5, 0, horizontalSpeed, 0);
   printNumber(11, 0, verticalSpeed, 0);
-  printNumber(0, 1, horizontalMotor.currentPosition(), 0);
-  printNumber(8, 1, verticalMotor.currentPosition(), 0);
+  printNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
+  printNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
 }
 
 void drawCalibrateSelected() {
@@ -295,12 +300,12 @@ void drawAzimuthAltitude() {
     case 6:
       printAt(0, 0, "> HRZ M POS:    ");
       printAt(0, 1, "                ");
-      printFloatingPointNumber(1, 1, horizontalMotor.currentPosition(), 14, 0);
+      printFloatingPointNumber(1, 1, horizontalMotor->getCurrentPosition(), 14, 0);
       break;
     case 7:
       printAt(0, 0, "> VER M POS:    ");
       printAt(0, 1, "                ");
-      printFloatingPointNumber(1, 1, verticalMotor.currentPosition(), 14, 0);
+      printFloatingPointNumber(1, 1, verticalMotor->getCurrentPosition(), 14, 0);
       break;
   }
   
