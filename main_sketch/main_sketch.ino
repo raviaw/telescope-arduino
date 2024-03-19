@@ -12,10 +12,13 @@
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
 #include "FastAccelStepper.h"
+#include <Wire.h>
+#include <RTClib.h>
 
 #include <SPI.h>
   
 LiquidCrystal lcd(11, 12, 4, 5, 9, 10); 
+RTC_DS3231 rtc;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *verticalMotor = NULL;
@@ -28,6 +31,7 @@ elapsedMillis printTime;
 elapsedMillis lcdTime;
 elapsedMillis calcTime;
 elapsedMillis ledTime;
+elapsedMillis buttonTime;
 
 #define MODE_MENU 0 
 #define MODE_REPORT 1
@@ -39,7 +43,7 @@ elapsedMillis ledTime;
 #define MODE_MOVE_MOTOR 8
 #define MODE_CALIBRATE_PICKED_STAR 9
 #define MODE_CALIBRATE_MOVING 10
-#define MODE_CALIBRATE_SELECTED 11
+#define MODE_CALIBRATE_STAR_COMPLETE 11
 #define MODE_CALIBRATION_COMPLETE 12
 
 // Reduction X Axis = 1/ 198
@@ -76,7 +80,7 @@ target mimosa = {"Mimosa", hourMinArcSecToDouble(12, 47, 44), hourMinArcSecToDou
 target acrux = {"Acrux", hourMinArcSecToDouble(12, 26, 35.89), hourMinArcSecToDouble(-63, 5, 56.7343)};
 // target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
 
-target calibratingTarget;
+target* calibratingTarget;
 
 float gpsLatitude = -22.6599734;
 float gpsLongitude = -46.9420532;
@@ -147,14 +151,32 @@ int calibrated = 0;
 int ledPower = 0;
 int ledIncrement = 3;
 
+int rtcInitialized = 0;
+
 void setup() {
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
   lcd.print("INITIALIZING...."); 
   lcd.setCursor(0, 1);
   lcd.print("    ...TELESCOPE"); 
-
+  
   Serial.begin(115200);
+
+  // Wire.begin();
+  rtcInitialized = rtc.begin();
+  if (rtcInitialized) {
+    if (rtc.lostPower()) {
+      // This time needs to come from the serial
+      rtc.adjust(DateTime(2024, 3, 19, 20, 31, 0));
+    }    
+  }
+
+  // rtc.setMinute(12);
+  // rtc.setHour(20);
+  // rtc.setDate(19);
+  // rtc.setMonth(3);
+  // rtc.setYear(2024);
+
 
   parseReceivedTimeString("2024-03-16 23:40:50.123");
 
@@ -176,6 +198,8 @@ void setup() {
 }
 
 void loop() {
+  //
+  // Error situation
   if(verticalMotor == NULL || horizontalMotor == NULL) {
     lcd.setCursor(0, 1);
     lcd.print("                ");
@@ -192,13 +216,23 @@ void loop() {
     }
     lcd.setCursor(0, 1);
     lcd.print("STEPPER FAILURE");
+
     delay(500);
     return;
   }
-  
-  calculateTime();
+  if (!rtcInitialized) {
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+    lcd.setCursor(0, 0);
+    lcd.print("RTC FAILURE     ");
 
+    delay(500);
+  }
+  
   if (calcTime > 25) {
+    // Time calculation
+    calculateTime();
+    
     //
     // Standard loop cals
     julianDate = julianDateCalc();
@@ -206,15 +240,17 @@ void loop() {
     lst = gstToLstCalc();
     azimuthAltitudeCalculation();
 
-    potHorizontal = analogRead(1);
-    potVertical = analogRead(2);
+    potHorizontal = analogRead(4);
+    potVertical = analogRead(5);
     
     moveMotors();
 
     calcTime = 0;
   }
 
-  registerButton();
+  if (buttonTime > 100) {
+    registerButton();
+  }
   //calculateLocalSiderealTime();
   //updateCoords(defaultTarget);
 
@@ -249,10 +285,10 @@ void storeCalibrateCoordinates() {
     usePoint = &calibrationPoint1;
   } else {
     usePoint = &calibrationPoint2;
-  }  
+  }
   
-  usePoint->ra = ra;
-  usePoint->dec = dec;
+  usePoint->ra = calibratingTarget->ra;
+  usePoint->dec = calibratingTarget->dec;
   usePoint->lst = lst;
   usePoint->ha = ha;
   usePoint->azm = azm;
@@ -264,17 +300,18 @@ void storeCalibrationData() {
   calibrated = 1;
   ledIncrement = 1;
 
-  ha1 = calibrationPoint0.ha * 1000.0;
-  ha2 = calibrationPoint1.ha * 1000.0;
+  ha1 = calibrationPoint0.ha * 10000.0;
+  ha2 = calibrationPoint1.ha * 10000.0;
   haMotor1 = calibrationPoint0.verticalPosition;
   haMotor2 = calibrationPoint1.verticalPosition;
-  azm1 = calibrationPoint0.azm * 1000.0;
-  azm2 = calibrationPoint1.azm * 1000.0;
+  azm1 = calibrationPoint0.azm * 10000.0;
+  azm2 = calibrationPoint1.azm * 10000.0;
   azmMotor1 = calibrationPoint0.horizontalPosition;
   azmMotor2 = calibrationPoint1.horizontalPosition;
-  
-  ha = calibrationPoint1.ha;
-  azm = calibrationPoint1.azm;
+
+  // So that it doesn't move when the last point moves
+  ra = calibratingTarget->ra;
+  dec = calibratingTarget->dec;
 }
 
 void moveMotors() {
@@ -356,6 +393,3 @@ void moveMotors() {
 //   horizontalMotor->move(horizontalMotorSpeed * horizontalMultiplier);
 //   verticalMotor->move(verticalMotorSpeed * verticalMultiplier);
 }
-
-float stepsPerDegree = 1000;
-

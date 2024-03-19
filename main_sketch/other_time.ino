@@ -54,19 +54,15 @@ void parseReceivedTimeString(char* timeString) {
 void calculateTime() {
   // startSecOfDay = (startHour * 3600) + (startMinute * 60) + startSecond;
 
-  long currentTimeMillis = millis();
-  long elapsedMillis = currentTimeMillis - startTimeMs;
-  // 3600 seconds in hour
-  // 60 seconds in minute
-  long elapsedSec = elapsedMillis / 1000L;
-
-  long currentTotalSec = startSecOfDay + elapsedSec;
-  currentSecOfDay = currentTotalSec;
-
-  currentHour = (currentTotalSec / 3600L);
-  currentMinute = (currentTotalSec % 3600L) / 60L;
-  currentSecond = currentTotalSec % 60L;
+  DateTime now = rtc.now();
+  currentHour = now.hour();
+  currentMinute = now.minute();
+  currentSecond = now.second();
+  currentDay = now.day();
+  currentMonth = now.month();
+  currentYear = now.year();
   
+  currentSecOfDay = (currentHour * 3600L) + (currentMinute * 60L) + currentSecond;
   timeOfDay = currentSecOfDay / 3600.0D;
 }
 

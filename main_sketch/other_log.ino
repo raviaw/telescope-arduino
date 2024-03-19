@@ -9,7 +9,7 @@ void reportStatus() {
   Serial.print(loopsPerSec);
   Serial.print("], ");
 
-  int currentButtonValue = analogRead(7);
+  int currentButtonValue = analogRead(1);
   Serial.print("B: [");
   Serial.print(currentButtonValue);
   Serial.print("], ");
@@ -55,6 +55,31 @@ void reportStatus() {
   Serial.print(".");
   printPadding(startMs, 3);
   Serial.print("], ");
+
+  Serial.print("RTC[");
+
+    DateTime now = rtc.now();
+
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(" (");
+    Serial.print(now.dayOfTheWeek());
+    Serial.print(") ");
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+
+    Serial.print(" since midnight 1/1/1970 = ");
+    Serial.print(now.unixtime());
+    Serial.print("s = ");
+    Serial.print(now.unixtime() / 86400L);
+    Serial.print("d");  
+    Serial.print("], ");
 
   Serial.print("C[");
   Serial.print(currentYear);
