@@ -16,23 +16,29 @@
 #include <RTClib.h>
 
 #include <SPI.h>
-  
+
+#define MAX_VERTICAL_SPEED 15000
+#define MAX_HORIZONTAL_SPEED 500
+
+// region Engine declarations
+//  
 LiquidCrystal lcd(11, 12, 4, 5, 9, 10); 
 RTC_DS3231 rtc;
-
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *verticalMotor = NULL;
 FastAccelStepper *horizontalMotor = NULL;
-
-// AccelStepper verticalMotor(AccelStepper::DRIVER, 10, 11); 
-// AccelStepper horizontalMotor(AccelStepper::DRIVER, 12, 13); 
+//
+// endregion
 
 elapsedMillis printTime;
 elapsedMillis lcdTime;
 elapsedMillis calcTime;
 elapsedMillis ledTime;
 elapsedMillis buttonTime;
+elapsedMillis moveMotorsTime;
 
+// region Menu modes
+//
 #define MODE_MENU 0 
 #define MODE_REPORT 1
 #define MODE_MOVE_MENU 2
@@ -45,10 +51,36 @@ elapsedMillis buttonTime;
 #define MODE_CALIBRATE_MOVING 10
 #define MODE_CALIBRATE_STAR_COMPLETE 11
 #define MODE_CALIBRATION_COMPLETE 12
+//
+// endregion
 
-// Reduction X Axis = 1/ 198
-// Reduction Z Axis = 1/ 33
+// region Menu variables
+//
+#define RIGHT 1
+#define UP 2
+#define DOWN 3
+#define LEFT 4
+#define SELECT 5
 
+int buttonAction1 = -2;
+int buttonAction2 = -2;
+int actionIndex = 0;
+int lastButtonAction = -1;
+
+int selectedChoice = 0;
+int maxChoice = 0;
+
+int activeMode = MODE_MENU;
+
+int potHorizontal;
+int potVertical;
+int ledPower = 0;
+int ledIncrement = 3;
+//
+// endregion
+
+// region Target/ calibrating data declaration
+//
 typedef struct {
   String name;
   double ra;
@@ -78,16 +110,29 @@ target canopus = {"Canopus", hourMinArcSecToDouble(6, 24, 29.6), hourMinArcSecTo
 target alphaCentauri = {"Alpha Centauri", hourMinArcSecToDouble(14, 41, 16.7), hourMinArcSecToDouble(-60, 55, 59.1)};
 target mimosa = {"Mimosa", hourMinArcSecToDouble(12, 47, 44), hourMinArcSecToDouble(-59, 41, 19)};
 target acrux = {"Acrux", hourMinArcSecToDouble(12, 26, 35.89), hourMinArcSecToDouble(-63, 5, 56.7343)};
+target rigel = {"Rigel", hourMinArcSecToDouble(5, 14, 32.27210), hourMinArcSecToDouble(-8, 12, 5.8981)};
 // target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
 
+target targets[] = { sirius, canopus, alphaCentauri, mimosa, acrux, rigel };
 target* calibratingTarget;
 
+int calibratingStarIndex = 0;
+calibrationPoint calibrationPoint0;
+calibrationPoint calibrationPoint1;
+calibrationPoint calibrationPoint2;
+int calibrated = 0;
+//
+// endregion
+
+// region Hardcoded GPS lat/ lon
+// 
 float gpsLatitude = -22.6599734;
 float gpsLongitude = -46.9420532;
-//unsigned long age;
-//double timenow;_
+//
+// endregion
 
-// Current ra and current dec
+// region Where we are pointing at, where we are
+//
 double ra = 10.0;
 double dec = -20.0;
 double julianDate;
@@ -97,6 +142,20 @@ double lst;
 double ha;
 double azm;
 
+int horizontalSpeed = 0;
+int verticalSpeed = 0;
+float verticalMotorSpeed = 0.0;
+float horizontalMotorSpeed = 0.0;
+float horizontalCoordinateSpeed = 0;
+float verticalCoordinateSpeed = 0;
+
+int loopsPerSec = 0;
+int rtcInitialized = 0;
+//
+// endregion
+
+// region Date/ time variables
+//
 int startYear;
 int startMonth;
 int startDay;
@@ -114,9 +173,11 @@ int currentMinute;
 int currentSecond;
 int currentMs;
 long currentSecOfDay;
-int potHorizontal;
-int potVertical;
+//
+// endregion
 
+// region Calibration info
+// 
 long ha1;
 long ha2;
 long haMotor1;
@@ -125,33 +186,8 @@ long azm1;
 long azm2;
 long azmMotor1;
 long azmMotor2;
-
-int activeMode = MODE_MENU;
-
-int calibratingStarIndex = 0;
-calibrationPoint calibrationPoint0;
-calibrationPoint calibrationPoint1;
-calibrationPoint calibrationPoint2;
-
-int horizontalSpeed = 0;
-int verticalSpeed = 0;
-float verticalMotorSpeed = 0.0;
-float horizontalMotorSpeed = 0.0;
-
-float horizontalCoordinateSpeed = 0;
-float verticalCoordinateSpeed = 0;
-
-int loopsPerSec = 0;
-
-#define MAX_VERTICAL_SPEED 15000
-#define MAX_HORIZONTAL_SPEED 500
-
-int calibrated = 0;
-
-int ledPower = 0;
-int ledIncrement = 3;
-
-int rtcInitialized = 0;
+//
+// endregion
 
 void setup() {
   lcd.begin(16, 2);
@@ -247,22 +283,32 @@ void loop() {
 
     calcTime = 0;
   }
+  
+  if (moveMotors > 100) {
+    moveMotors();
+
+    moveMotorsTime = 0;
+  }
 
   if (buttonTime > 100) {
     registerButton();
+
+    buttonTime = 0;
   }
   //calculateLocalSiderealTime();
   //updateCoords(defaultTarget);
 
   loopsPerSec++;
   if (printTime >= 1000) {    // reports speed and position each second
-    printTime = 0;
     reportStatus();
     loopsPerSec = 0;
+
+    printTime = 0;
   }
   if (lcdTime >= 250) {    // reports speed and position each second
-    lcdTime = 0;
     reportLcd();
+
+    lcdTime = 0;
   }
 
   if (ledTime > 10) {
@@ -273,6 +319,7 @@ void loop() {
       ledIncrement *= -1;
     }
     analogWrite(13, ledPower);
+
     ledTime = 0;
   }
 }
@@ -327,8 +374,8 @@ void moveMotors() {
       // tracking
     }
     
-    long newVerticalPos = map(ha * 1000, ha1, ha2, haMotor1, azmMotor1);
-    long newHorizontalPos = map(ha * 1000, azm1, azm2, haMotor1, azmMotor2);
+    long newVerticalPos = map(ha * 1000, ha1, ha2, haMotor1, haMotor2);
+    long newHorizontalPos = map(ha * 1000, azm1, azm2, azmMotor1, azmMotor2);
     
     verticalMotor->moveTo(newVerticalPos);
     horizontalMotor->moveTo(newHorizontalPos);

@@ -1,17 +1,3 @@
-int lastButtonAction = -1;
-#define RIGHT 1
-#define UP 2
-#define DOWN 3
-#define LEFT 4
-#define SELECT 5
-
-int buttonAction1 = -2;
-int buttonAction2 = -2;
-int actionIndex = 0;
-
-int selectedChoice = 0;
-int maxChoice = 0;
-
 void registerButton() {
   int newAction = -1;
 

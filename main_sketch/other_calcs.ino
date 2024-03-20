@@ -88,3 +88,4 @@ void azimuthAltitudeCalculation() { //This section calculates the Azimuth and th
   ha = alt;
   azm = az;
 }
+
