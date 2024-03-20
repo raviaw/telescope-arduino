@@ -1,7 +1,15 @@
-# Arduino Code
+# Telescope Arduino
 
-stepsPerDegree - how many steps to move one degree
-degreePerSecTrackingSpeed - what should be the vertical speed to keep an object in sight, in degrees per second
+The main_sketch folder contains the Arduino code to move a 2 motor mount and to calibrate/ track stars based on locked geolocation.
 
-// moveTo method - where the stepper should be
-// Long variables are extended size variables for number storage, and store 32 bits (4 bytes), from -2,147,483,648 to 2,147,483,647.
+Test:
+
+Calibrating code.
+
+Implement:
+
+Encoders to move menu options, extra action button in the encoder, new cancel action button;
+Control LCD brighteness;
+Find stars;
+Bluetooth communication with phone;
+Android app.
