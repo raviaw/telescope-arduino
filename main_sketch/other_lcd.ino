@@ -317,7 +317,7 @@ void drawAzimuthAltitude() {
       printLcdFloatingPointNumber(8, 1, ra, 7, 5);
       break;
     case 5:
-      printLcdAt(0, 0, "> HA/ AZM:      ");
+      printLcdAt(0, 0, "> ALT/ AZM:     ");
       printLcdAt(0, 1, "                ");
       printLcdFloatingPointNumber(0, 1, alt, 7, 4);
       printLcdFloatingPointNumber(8, 1, azm, 7, 4);
@@ -333,24 +333,24 @@ void drawAzimuthAltitude() {
       printLcdFloatingPointNumber(1, 1, verticalMotor->getCurrentPosition(), 14, 0);
       break;
     case 8:
-      printLcdAt(0, 0, "> CALB. HA1:    ");
+      printLcdAt(0, 0, "> CALB. ALT 1:   ");
       printLcdAt(0, 1, "                ");
-      printLcdFloatingPointNumber(1, 1, ha1, 14, 2);
+      printLcdFloatingPointNumber(1, 1, alt1, 14, 2);
       break;
     case 9:
-      printLcdAt(0, 0, "> CALB. HA2:    ");
+      printLcdAt(0, 0, "> CALB. ALT 2:   ");
       printLcdAt(0, 1, "                ");
-      printLcdFloatingPointNumber(1, 1, ha2, 14, 2);
+      printLcdFloatingPointNumber(1, 1, alt2, 14, 2);
       break;
     case 10:
-      printLcdAt(0, 0, "> CALB. HA M.1: ");
+      printLcdAt(0, 0, "> CALB. ALTM.1: ");
       printLcdAt(0, 1, "                ");
-      printLcdNumber(1, 1, haMotor1, 14);
+      printLcdNumber(1, 1, altMotor1, 14);
       break;
     case 11:
-      printLcdAt(0, 0, "> CALB. HA M.2: ");
+      printLcdAt(0, 0, "> CALB. ALTM.2: ");
       printLcdAt(0, 1, "                ");
-      printLcdNumber(1, 1, haMotor2, 14);
+      printLcdNumber(1, 1, altMotor2, 14);
       break;
     case 12:
       printLcdAt(0, 0, "> CALB. AZM1:   ");

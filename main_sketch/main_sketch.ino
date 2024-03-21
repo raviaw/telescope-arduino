@@ -220,10 +220,10 @@ long currentSecOfDay;
 
 // region Calibration info
 // 
-double ha1;
-double ha2;
-double haMotor1;
-double haMotor2;
+double alt1;
+double alt2;
+double altMotor1;
+double altMotor2;
 double azm1;
 double azm2;
 double azmMotor1;
@@ -236,7 +236,6 @@ long newHorizontalPos;
 double calcLst;
 double calcRa;
 double sinAlt;
-double alt;
 double cosA;
 double a;
 double sinHa;
@@ -455,10 +454,10 @@ void storeCalibrationData() {
   calibrated = 1;
   ledIncrement = 1;
 
-  ha1 = calibrationPoint0.alt;
-  ha2 = calibrationPoint1.alt;
-  haMotor1 = calibrationPoint0.verticalPosition;
-  haMotor2 = calibrationPoint1.verticalPosition;
+  alt1 = calibrationPoint0.alt;
+  alt2 = calibrationPoint1.alt;
+  altMotor1 = calibrationPoint0.verticalPosition;
+  altMotor2 = calibrationPoint1.verticalPosition;
   azm1 = calibrationPoint0.azm;
   azm2 = calibrationPoint1.azm;
   azmMotor1 = calibrationPoint0.horizontalPosition;
@@ -472,7 +471,7 @@ void storeCalibrationData() {
 }
 
 void moveMotorsTracking() {
-  newVerticalPos = mapDouble(alt, ha1, ha2, haMotor1, haMotor2);
+  newVerticalPos = mapDouble(alt, alt1, alt2, altMotor1, altMotor2);
   newHorizontalPos = mapDouble(azm, azm1, azm2, azmMotor1, azmMotor2);
   // if (logMotorsTime > 1000) { 
   //   Serial.println();
@@ -482,10 +481,10 @@ void moveMotorsTracking() {
   //   Serial.print(alt);
   //   Serial.print(", alt * 10000.0: ");
   //   Serial.print(alt * 10000.0);
-  //   Serial.print(", ha1: ");
-  //   Serial.print(ha1);
-  //   Serial.print(", ha2: ");
-  //   Serial.print(ha2);
+  //   Serial.print(", alt1: ");
+  //   Serial.print(alt1);
+  //   Serial.print(", alt2: ");
+  //   Serial.print(alt2);
   //   Serial.print(", calibrationPoint0.alt: ");
   //   Serial.print(calibrationPoint0.alt);
   //   Serial.print(", calibrationPoint1.alt: ");
@@ -495,9 +494,9 @@ void moveMotorsTracking() {
   //   Serial.print(", calibrationPoint1.alt * 10000.0: ");
   //   Serial.print(calibrationPoint1.alt * 10000.0);
   //   Serial.print(", ");
-  //   Serial.print(haMotor1);
+  //   Serial.print(altMotor1);
   //   Serial.print(", ");
-  //   Serial.print(haMotor2);
+  //   Serial.print(altMotor2);
   //   Serial.print("");
   //   Serial.println();
 

@@ -16,9 +16,9 @@ void refreshOled() {
   for (int pixelLocation = 16; pixelLocation < SCREEN_HEIGHT; pixelLocation += 2) {
     oledDisplay.drawPixel(azimuthLineLocation, pixelLocation, WHITE);
   }
-  int haLineLocation = mapDouble(alt, 90, -90, 16, SCREEN_HEIGHT);
+  int altLineLocation = mapDouble(alt, 90, -90, 16, SCREEN_HEIGHT);
   for (int pixelLocation = 0; pixelLocation < SCREEN_WIDTH; pixelLocation += 2) {
-    oledDisplay.drawPixel(pixelLocation, haLineLocation, WHITE);
+    oledDisplay.drawPixel(pixelLocation, altLineLocation, WHITE);
   }
   
   if (activeMode == MODE_CALIBRATING || activeMode == MODE_FIND) {
