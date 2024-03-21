@@ -1,45 +1,65 @@
 void registerButton() {
   int newAction = -1;
 
-  int currentButtonValue = analogRead(1);
-  if (currentButtonValue > 1000) {
+  int currentButtonValue = analogRead(LCD_INPUT_BUTTON);
+  int referenceValue = analogRead(REFERENCE_INPUT_BUTTON);
+  int realButtonValue = map(currentButtonValue, 0, referenceValue, 0, 1024);
+  if (realButtonValue > 1000) {
     // Button UP
-    currentButtonValue = 1000;
+    realButtonValue = 1000;
     newAction = -1;
-  } else if (currentButtonValue < 80) {
+  } else if (realButtonValue < 80) {
     newAction = RIGHT;
-  } else if (currentButtonValue < 200) {
+  } else if (realButtonValue < 200) {
     newAction = UP;
-  } else if (currentButtonValue < 400) {
+  } else if (realButtonValue < 400) {
     newAction = DOWN;
-  } else if (currentButtonValue < 600) {
+  } else if (realButtonValue < 600) {
     newAction = LEFT;
-  } else if (currentButtonValue < 800) {
+  } else if (realButtonValue < 800) {
     newAction = SELECT;
   }
   
-  if (actionIndex == 0) {
-    buttonAction1 = newAction;
-    actionIndex++;
-  } else if(actionIndex == 1) {
-    buttonAction2 = newAction;
+  if (digitalRead(ACTION_INPUT_BUTTON)) {
+    newAction = SELECT;
+  }
+  
+  if (selectActionIndex == 0) {
+    selectButtonAction1 = newAction;
+    selectActionIndex++;
+  } else if(selectActionIndex == 1) {
+    selectButtonAction2 = newAction;
     
-    if (buttonAction1 == buttonAction2 && buttonAction1 != -2) {
+    if (selectButtonAction1 == selectButtonAction2 && selectButtonAction1 != -2) {
       performButtonAction(newAction);
     } else {
-      buttonAction1 = -2;
-      buttonAction2 = -2;
-      actionIndex = 0;
+      selectButtonAction1 = -2;
+      selectButtonAction2 = -2;
+      selectActionIndex = 0;
     }
+  }
+  
+  registerKnobNavigation();
+}
+
+void registerKnobNavigation() {
+  long newKnobValue = knob.read() / 2;
+  long knobDifference = newKnobValue - lastKnobValue;
+  lastKnobValue = newKnobValue;
+  selectedChoice += knobDifference;
+  if (selectedChoice > maxChoice) {
+    selectedChoice = 0;
+  } else if (selectedChoice < 0) {
+    selectedChoice = maxChoice;
   }
 }
 
 void performButtonAction(int newAction) {
-  if (newAction == -1 && lastButtonAction != -1) {
-    buttonPressed(lastButtonAction);
-    lastButtonAction = -1;
+  if (newAction == -1 && lastSelectButtonAction != -1) {
+    buttonPressed(lastSelectButtonAction);
+    lastSelectButtonAction = -1;
   }
-  lastButtonAction = newAction;
+  lastSelectButtonAction = newAction;
 }
 
 void buttonSelect() {
@@ -61,10 +81,12 @@ void buttonSelect() {
         activeMode = MODE_CALIBRATING;
         calibratingStarIndex = 0;
         ledIncrement = 3;
+        prepareToRenderStars();
         break;
       case 3: 
         activeMode = MODE_FIND;
         ledIncrement = 2;
+        prepareToRenderStars();
         break;
     }
   } else if( activeMode == MODE_MOVE_MENU) {
@@ -77,23 +99,18 @@ void buttonSelect() {
         calibrated = 0;
         break;
     }
+  } else if( activeMode == MODE_FIND) {
+    target* wantedStar = &targets[selectedChoice];
+    ra = wantedStar->ra;
+    dec = wantedStar->dec;
+    prepareToMoveWithCalibration();
+    calculateEverything();
+    activeMode = MODE_MENU;
   } else if(activeMode == MODE_CALIBRATING) {
-    switch(selectedChoice) {
-      case 0:
-        calibratingTarget = &sirius;
-        break;
-      case 1:
-        calibratingTarget = &alphaCentauri;
-        break;
-      case 2:
-        calibratingTarget = &canopus;
-        break;
-      case 3:
-        calibratingTarget = &acrux;
-        break;
-    }
+    calibratingTarget = &targets[selectedChoice];
     activeMode = MODE_CALIBRATE_PICKED_STAR;
   } else if(activeMode == MODE_CALIBRATE_PICKED_STAR) {
+    prepareStarCoordinates();
     activeMode = MODE_CALIBRATE_MOVING;
   } else if(activeMode == MODE_CALIBRATE_MOVING) {
     if (calibratingStarIndex < 1) {
@@ -103,9 +120,11 @@ void buttonSelect() {
     } else {
       storeCalibrateCoordinates();
       storeCalibrationData();
+      prepareToMoveWithCalibration();
       activeMode = MODE_CALIBRATION_COMPLETE;
     }
   } else if(activeMode == MODE_CALIBRATE_STAR_COMPLETE) {
+    prepareToRenderStars();
     activeMode = MODE_CALIBRATING;
   } else {
     resetSpeeds();
@@ -125,7 +144,7 @@ void reportLcd() {
   if (activeMode == MODE_MENU) {
     drawMainMenu();
   } else if (activeMode == MODE_FIND) {
-    drawFindMenu();
+    drawRenderStars();
   } else if (activeMode == MODE_MOVE_MENU) {
     drawMoveMenu();
   } else if (activeMode == MODE_MOVE_COORDINATES) {
@@ -135,7 +154,7 @@ void reportLcd() {
   } else if (activeMode == MODE_AZ_ALT) {
     drawAzimuthAltitude();
   } else if (activeMode == MODE_CALIBRATING) {
-    drawCalibrateMenu();
+    drawRenderStars();
   } else if (activeMode == MODE_CALIBRATE_PICKED_STAR) {
     drawCalibratePickedStar();
   } else if (activeMode == MODE_CALIBRATE_MOVING) {
@@ -203,14 +222,14 @@ void drawMovingMotor() {
   printLcdNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
 }
 
-void drawCalibrateMenu() {
-  // [0] MAIN#[2]#CALB
-  // [3] MOVE#########
-  // 0123456789012345
-  maxChoice = 4;
-  renderMenuOptions(" SIRIUS  CAN.   ", " A. CEN  ACRUX  ");
-  printLcdNumber(15, 1, calibratingStarIndex, 0);
-}
+// void drawCalibrateMenu() {
+//   // [0] MAIN#[2]#CALB
+//   // [3] MOVE#########
+//   // 0123456789012345
+//   maxChoice = 4;
+//   renderMenuOptions(" SIRIUS  CAN.   ", " A. CEN  ACRUX  ");
+//   printLcdNumber(15, 1, calibratingStarIndex, 0);
+// }
 
 void drawCalibratePickedStar() {
   maxChoice = 0;
@@ -292,10 +311,10 @@ void drawAzimuthAltitude() {
       printLcdFloatingPointNumber(8, 1, gstTime, 7, 5);
       break;
     case 4:
-      printLcdAt(0, 0, "> RA/ DEC:       ");
+      printLcdAt(0, 0, "> DEC/ RA:       ");
       printLcdAt(0, 1, "                ");
-      printLcdFloatingPointNumber(0, 1, ra, 7, 5);
-      printLcdFloatingPointNumber(8, 1, dec, 7, 5);
+      printLcdFloatingPointNumber(0, 1, dec, 7, 5);
+      printLcdFloatingPointNumber(8, 1, ra, 7, 5);
       break;
     case 5:
       printLcdAt(0, 0, "> HA/ AZM:      ");
@@ -365,6 +384,30 @@ void printLcdAt(int horizontalPosition, int verticalPosition, String text) {
 }
 
 void resetSpeeds() {
+}
+
+void prepareToRenderStars() {
+  maxChoice = sizeof(targets) / sizeof(targets[0]);
+  selectedChoice = 0;
+}
+
+void drawRenderStars() {
+  target* useTarget = &targets[selectedChoice];
+
+  lcd.setCursor(0, 0); 
+  lcd.print("                ");
+  lcd.setCursor(0, 1); 
+  lcd.print("                "); 
+  
+  printLcdAt(0, 0, "Star ");
+  printLcdAt(5, 0, useTarget->name);
+  lcd.print(":");
+  
+  lastStarDec = useTarget->dec;
+  lastStarRa = useTarget->ra;
+  
+  printLcdFloatingPointNumber(0, 1, useTarget->ra, 7, 4);
+  printLcdFloatingPointNumber(8, 1, useTarget->dec, 7, 4);
 }
 
 void renderMenuOptions(String line1, String line2) {

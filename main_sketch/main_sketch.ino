@@ -14,11 +14,20 @@
 #include "FastAccelStepper.h"
 #include <Wire.h>
 #include <RTClib.h>
-
+#include <Encoder.h>
+#include <SoftwareSerial.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <SPI.h>
 
 #define MAX_VERTICAL_SPEED 15000
 #define MAX_HORIZONTAL_SPEED 500
+
+#define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define SCREEN_TOP_AREA_PIXELS 16
+#define SCREEN_BOTTOM_AREA_PIXELS 48
 
 // region Engine declarations
 //  
@@ -27,6 +36,20 @@ RTC_DS3231 rtc;
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *verticalMotor = NULL;
 FastAccelStepper *horizontalMotor = NULL;
+Encoder knob(2, 3);
+Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+#define VERTICAL_STEPPER_STEP_PIN 6
+#define VERTICAL_STEPPER_DIR_PIN 22
+#define HORIZONTAL_STEPPER_STEP_PIN 7
+#define HORIZONTAL_STEPPER_DIR_PIN 24
+
+#define LCD_INPUT_BUTTON 1
+#define REFERENCE_INPUT_BUTTON 7
+#define ACTION_INPUT_BUTTON 52
+#define ENCODER_INPUT_BUTTON 48
+#define BACK_INPUT_BUTTON 46
+
 //
 // endregion
 
@@ -36,6 +59,8 @@ elapsedMillis calcTime;
 elapsedMillis ledTime;
 elapsedMillis buttonTime;
 elapsedMillis moveMotorsTime;
+elapsedMillis logMotorsTime;
+elapsedMillis oledRefreshTime;
 
 // region Menu modes
 //
@@ -62,20 +87,25 @@ elapsedMillis moveMotorsTime;
 #define LEFT 4
 #define SELECT 5
 
-int buttonAction1 = -2;
-int buttonAction2 = -2;
-int actionIndex = 0;
-int lastButtonAction = -1;
+int selectButtonAction1 = -2;
+int selectButtonAction2 = -2;
+int selectActionIndex = 0;
+int lastSelectButtonAction = -1;
 
 int selectedChoice = 0;
 int maxChoice = 0;
 
 int activeMode = MODE_MENU;
 
+//int lcdStarIndex = 0;
+int lcdSelectedStar = -1;
+
 int potHorizontal;
 int potVertical;
 int ledPower = 0;
 int ledIncrement = 3;
+
+long lastKnobValue = 0;
 //
 // endregion
 
@@ -105,15 +135,24 @@ double hourMinArcSecToDouble(float hour, float minute, float second) {
   }
 }
 
+double hourMinArcSecToDoubleRa(float hour, float minute, float second) {
+  double value = hourMinArcSecToDouble(hour, minute, second);
+  return mapDouble(value, 0, 24.0, 0, 360);
+}
+
 target sirius = {"Sirius", hourMinArcSecToDouble(6, 46, 13), hourMinArcSecToDouble(-16, 45, 7.3)};
 target canopus = {"Canopus", hourMinArcSecToDouble(6, 24, 29.6), hourMinArcSecToDouble(-52, 42, 45.3)};
 target alphaCentauri = {"Alpha Centauri", hourMinArcSecToDouble(14, 41, 16.7), hourMinArcSecToDouble(-60, 55, 59.1)};
 target mimosa = {"Mimosa", hourMinArcSecToDouble(12, 47, 44), hourMinArcSecToDouble(-59, 41, 19)};
 target acrux = {"Acrux", hourMinArcSecToDouble(12, 26, 35.89), hourMinArcSecToDouble(-63, 5, 56.7343)};
 target rigel = {"Rigel", hourMinArcSecToDouble(5, 14, 32.27210), hourMinArcSecToDouble(-8, 12, 5.8981)};
+target hadar = {"Hadar", hourMinArcSecToDouble(14, 3, 49.40535), hourMinArcSecToDouble(-60, 22, 22.9266)};
+target altair = {"Altair", hourMinArcSecToDouble(19, 50, 46.99855), hourMinArcSecToDouble(8, 52, 5.9563)};
+target polaris = {"Polaris", hourMinArcSecToDouble(2, 31, 49.09), hourMinArcSecToDouble(89, 15, 50.8)};
+target sigmaOctantis = {"Sigma Octantis", hourMinArcSecToDouble(21, 8, 46.86357), hourMinArcSecToDouble(-88, 57, 23.3983)};
 // target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
 
-target targets[] = { sirius, canopus, alphaCentauri, mimosa, acrux, rigel };
+target targets[] = { sirius, canopus, alphaCentauri, mimosa, acrux, rigel, hadar, altair, polaris, sigmaOctantis };
 target* calibratingTarget;
 
 int calibratingStarIndex = 0;
@@ -141,6 +180,9 @@ double gstTime;
 double lst;
 double ha;
 double azm;
+
+double lastStarRa = -999;
+double lastStarDec = -999;
 
 int horizontalSpeed = 0;
 int verticalSpeed = 0;
@@ -178,16 +220,29 @@ long currentSecOfDay;
 
 // region Calibration info
 // 
-long ha1;
-long ha2;
-long haMotor1;
-long haMotor2;
-long azm1;
-long azm2;
-long azmMotor1;
-long azmMotor2;
+double ha1;
+double ha2;
+double haMotor1;
+double haMotor2;
+double azm1;
+double azm2;
+double azmMotor1;
+double azmMotor2;
+long newVerticalPos;
+long newHorizontalPos;
 //
 // endregion
+
+double calcLst;
+double calcRa;
+double sinAlt;
+double alt;
+double cosA;
+double a;
+double sinHa;
+
+char serialBuffer[128];
+int serialBufferPointer = 0;
 
 void setup() {
   lcd.begin(16, 2);
@@ -207,35 +262,37 @@ void setup() {
     }    
   }
 
-  // rtc.setMinute(12);
-  // rtc.setHour(20);
-  // rtc.setDate(19);
-  // rtc.setMonth(3);
-  // rtc.setYear(2024);
+  oledDisplay.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  oledDisplay.display();
 
-
+  // This will go away
   parseReceivedTimeString("2024-03-16 23:40:50.123");
 
   engine.init();
-  verticalMotor = engine.stepperConnectToPin(6);
+  verticalMotor = engine.stepperConnectToPin(VERTICAL_STEPPER_STEP_PIN);
   if (verticalMotor) {
-    verticalMotor->setDirectionPin(22);
+    verticalMotor->setDirectionPin(VERTICAL_STEPPER_DIR_PIN);
     verticalMotor->setAcceleration(1500);
     verticalMotor->setAutoEnable(true);
   }
-  horizontalMotor = engine.stepperConnectToPin(7);
+  horizontalMotor = engine.stepperConnectToPin(HORIZONTAL_STEPPER_STEP_PIN);
   if (horizontalMotor) {
-    horizontalMotor->setDirectionPin(24);
+    horizontalMotor->setDirectionPin(HORIZONTAL_STEPPER_DIR_PIN);
     horizontalMotor->setAcceleration(100);
     horizontalMotor->setAutoEnable(true);
   }
+
+  // Bluetooth  
+  Serial1.begin(9600);
   
-  pinMode(13, OUTPUT);
+  pinMode(ACTION_INPUT_BUTTON, INPUT);
+  pinMode(ENCODER_INPUT_BUTTON, INPUT);
 }
 
 void loop() {
-  //
+  ///////////////////////////////////////////////////////////////////////////
   // Error situation
+  //
   if(verticalMotor == NULL || horizontalMotor == NULL) {
     lcd.setCursor(0, 1);
     lcd.print("                ");
@@ -264,21 +321,41 @@ void loop() {
 
     delay(500);
   }
+  //
+  ///////////////////////////////////////////////////////////////////////////
   
-  if (calcTime > 25) {
-    // Time calculation
-    calculateTime();
+  if(Serial1.available())
+  { 
+    char nextChar = Serial1.read();
+    if (nextChar != -1) { 
+      if (nextChar == '\n') {
+        serialBuffer[serialBufferPointer] = 0;
+        Serial.print("Received serial coordinates: ");
+        Serial.write(serialBuffer);
+        Serial.println();
+        serialBufferPointer = 0;
+        Serial1.write("Processing coordinates...");
+        processCoordinates(serialBuffer);
+      } 
+      if(serialBufferPointer < sizeof(serialBuffer) -1) {
+        serialBuffer[serialBufferPointer] = nextChar;
+        serialBufferPointer++;
+      }    
+    }
+  }
     
-    //
-    // Standard loop cals
-    julianDate = julianDateCalc();
-    gstTime = utcToGstCalc();
-    lst = gstToLstCalc();
-    azimuthAltitudeCalculation();
+  loopsPerSec++;
 
+  registerButton();
+
+  if (calcTime > 25) {
     potHorizontal = analogRead(4);
     potVertical = analogRead(5);
-    
+
+    //
+    calculateEverything();
+   
+    //
     moveMotors();
 
     calcTime = 0;
@@ -290,15 +367,6 @@ void loop() {
     moveMotorsTime = 0;
   }
 
-  if (buttonTime > 100) {
-    registerButton();
-
-    buttonTime = 0;
-  }
-  //calculateLocalSiderealTime();
-  //updateCoords(defaultTarget);
-
-  loopsPerSec++;
   if (printTime >= 1000) {    // reports speed and position each second
     reportStatus();
     loopsPerSec = 0;
@@ -322,17 +390,39 @@ void loop() {
 
     ledTime = 0;
   }
+  
+  if (oledRefreshTime > 1000) {
+    refreshOled();
+    oledRefreshTime = 0;
+  }
 }
 
+void processCoordinates(char* serialBuffer) {
+  String serialString = String(serialBuffer);
+  int splitIndex = serialString.indexOf(" ");
+  ra = serialString.substring(0, splitIndex).toDouble();
+  dec = serialString.substring(splitIndex + 1, serialString.length()).toDouble();
+}
+
+void calculateEverything() {
+  // Time calculation
+  calculateTime();
+    
+  //
+  // Standard loop cals
+  julianDate = julianDateCalc();
+  gstTime = utcToGstCalc();
+  lst = gstToLstCalc();
+  azimuthAltitudeCalculation();
+}
+ 
 void storeCalibrateCoordinates() {
   calibrationPoint* usePoint;
   if (calibratingStarIndex == 0) {
     usePoint = &calibrationPoint0;
   } else if (calibratingStarIndex == 1) {
     usePoint = &calibrationPoint1;
-  } else {
-    usePoint = &calibrationPoint2;
-  }
+  } 
   
   usePoint->ra = calibratingTarget->ra;
   usePoint->dec = calibratingTarget->dec;
@@ -343,22 +433,104 @@ void storeCalibrateCoordinates() {
   usePoint->verticalPosition = verticalMotor->getCurrentPosition(); 
 }
 
+void prepareStarCoordinates() {
+  ra = calibratingTarget->ra;
+  dec = calibratingTarget->dec;
+  calculateEverything();
+}
+
+void prepareToMoveWithCalibration() {
+  // Serial.println();
+  // Serial.println("Preparing to track - stopping motors");
+  // Serial.println();
+  horizontalMotor->setSpeedInHz(0);
+  horizontalMotor->applySpeedAcceleration();
+  horizontalMotor->stopMove();
+  verticalMotor->setSpeedInHz(0);
+  verticalMotor->applySpeedAcceleration();
+  verticalMotor->stopMove();
+}
+
 void storeCalibrationData() {
   calibrated = 1;
   ledIncrement = 1;
 
-  ha1 = calibrationPoint0.ha * 10000.0;
-  ha2 = calibrationPoint1.ha * 10000.0;
+  ha1 = calibrationPoint0.ha;
+  ha2 = calibrationPoint1.ha;
   haMotor1 = calibrationPoint0.verticalPosition;
   haMotor2 = calibrationPoint1.verticalPosition;
-  azm1 = calibrationPoint0.azm * 10000.0;
-  azm2 = calibrationPoint1.azm * 10000.0;
+  azm1 = calibrationPoint0.azm;
+  azm2 = calibrationPoint1.azm;
   azmMotor1 = calibrationPoint0.horizontalPosition;
   azmMotor2 = calibrationPoint1.horizontalPosition;
 
   // So that it doesn't move when the last point moves
-  ra = calibratingTarget->ra;
-  dec = calibratingTarget->dec;
+  ra = calibrationPoint1.ra;
+  dec = calibrationPoint1.dec;
+
+  calculateEverything();
+}
+
+void moveMotorsTracking() {
+  newVerticalPos = mapDouble(ha, ha1, ha2, haMotor1, haMotor2);
+  newHorizontalPos = mapDouble(azm, azm1, azm2, azmMotor1, azmMotor2);
+  // if (logMotorsTime > 1000) { 
+  //   Serial.println();
+  //   Serial.print("newVerticalPos: ");
+  //   Serial.print(newVerticalPos);
+  //   Serial.print(", ha: ");
+  //   Serial.print(ha);
+  //   Serial.print(", ha * 10000.0: ");
+  //   Serial.print(ha * 10000.0);
+  //   Serial.print(", ha1: ");
+  //   Serial.print(ha1);
+  //   Serial.print(", ha2: ");
+  //   Serial.print(ha2);
+  //   Serial.print(", calibrationPoint0.ha: ");
+  //   Serial.print(calibrationPoint0.ha);
+  //   Serial.print(", calibrationPoint1.ha: ");
+  //   Serial.print(calibrationPoint1.ha);
+  //   Serial.print(", calibrationPoint0.ha * 10000.0: ");
+  //   Serial.print(calibrationPoint0.ha * 10000.0);
+  //   Serial.print(", calibrationPoint1.ha * 10000.0: ");
+  //   Serial.print(calibrationPoint1.ha * 10000.0);
+  //   Serial.print(", ");
+  //   Serial.print(haMotor1);
+  //   Serial.print(", ");
+  //   Serial.print(haMotor2);
+  //   Serial.print("");
+  //   Serial.println();
+
+  //   Serial.println();
+  //   Serial.print("newHorizontalPos: ");
+  //   Serial.print(newHorizontalPos);
+  //   Serial.print(", azm: ");
+  //   Serial.print(azm);
+  //   Serial.print(", azm * 10000.0: ");
+  //   Serial.print(azm * 10000.0);
+  //   Serial.print(", azm1: ");
+  //   Serial.print(azm1);
+  //   Serial.print(", azm2: ");
+  //   Serial.print(azm2);
+  //   Serial.print(", calibrationPoint0.azm: ");
+  //   Serial.print(calibrationPoint0.azm);
+  //   Serial.print(", calibrationPoint1.azm: ");
+  //   Serial.print(calibrationPoint1.azm);
+  //   Serial.print(", calibrationPoint0.azm * 10000.0: ");
+  //   Serial.print(calibrationPoint0.azm * 10000.0);
+  //   Serial.print(", calibrationPoint1.azm * 10000.0: ");
+  //   Serial.print(calibrationPoint1.azm * 10000.0);
+  //   Serial.print(", ");
+  //   Serial.print(azmMotor1);
+  //   Serial.print(", ");
+  //   Serial.print(azmMotor2);
+  //   Serial.print("");
+  //   Serial.println();
+  //   logMotorsTime = 0;
+  // }
+
+  verticalMotor->moveTo(newVerticalPos);
+  horizontalMotor->moveTo(newHorizontalPos);
 }
 
 void moveMotors() {
@@ -370,15 +542,9 @@ void moveMotors() {
       verticalCoordinateSpeed = map(verticalSpeed, -120, +120, -1000, +1000) / 100000.0;
       ra += horizontalCoordinateSpeed;
       dec += verticalCoordinateSpeed;
-    } else if (activeMode == MODE_MOVE_MENU) {
-      // tracking
     }
     
-    long newVerticalPos = map(ha * 1000, ha1, ha2, haMotor1, haMotor2);
-    long newHorizontalPos = map(ha * 1000, azm1, azm2, azmMotor1, azmMotor2);
-    
-    verticalMotor->moveTo(newVerticalPos);
-    horizontalMotor->moveTo(newHorizontalPos);
+    moveMotorsTracking();
   } else {
     if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
       horizontalSpeed = translatePotValueToSpeed(potHorizontal);

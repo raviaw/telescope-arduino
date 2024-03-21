@@ -58,10 +58,35 @@ float gstToLstCalc() { //Converts GST (Greenwich Sidereal Time) to LST (Local Si
   
   return lst;
 }
-
 void azimuthAltitudeCalculation() { //This section calculates the Azimuth and the Altitude of the target object.
-  double targetRa = ra;
+  double piConversion = PI / 180.0;
+  double radiansConversion = 180.0 / PI;
+  calcLst = lst * 15.0 * piConversion;
+  calcRa = ra * 15.0 * piConversion;
+  double haDiff = calcLst - calcRa;
+  if (haDiff < 0) {
+    haDiff += 2 * PI;
+  }
+  
+  sinAlt = sin(dec * piConversion) * sin(gpsLatitude * piConversion) + (cos(dec * piConversion) * cos(gpsLatitude * piConversion) * cos(haDiff));
+  alt = asin(sinAlt);
+  cosA = (sin(dec* piConversion) - (sin(alt) * sin(gpsLatitude * piConversion))) / (cos(alt) * cos(gpsLatitude* piConversion));
+  a = acos(cosA);
+  sinHa = sin(haDiff);
+  if (sinHa < 0) {
+    azm = a;
+  } else {
+    azm = 2 * PI - a;
+  }
+
+  ha = alt * radiansConversion;
+  azm = azm * radiansConversion;
+  // alt = alt * radiansConversion;
+}
+
+void azimuthAltitudeCalculationOld() { //This section calculates the Azimuth and the Altitude of the target object.
   double targetDec = dec;
+  double targetRa = ra;
   
   targetRa = (targetRa / 15.0);
   double h = 15.0 * (lst - targetRa);
@@ -89,3 +114,7 @@ void azimuthAltitudeCalculation() { //This section calculates the Azimuth and th
   azm = az;
 }
 
+double mapDouble(double x, double in_min, double in_max, double out_min, double out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
