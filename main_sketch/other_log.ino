@@ -11,16 +11,16 @@ void reportStatus() {
 
   Serial.print("newVerticalPos: ");
   Serial.print(newVerticalPos);
-  Serial.print(", ha: ");
-  Serial.print(ha);
+  Serial.print(", alt: ");
+  Serial.print(alt);
   Serial.print(", ha1: ");
   Serial.print(ha1);
   Serial.print(", ha2: ");
   Serial.print(ha2);
-  Serial.print(", calibrationPoint0.ha: ");
-  Serial.print(calibrationPoint0.ha);
-  Serial.print(", calibrationPoint1.ha: ");
-  Serial.print(calibrationPoint1.ha);
+  Serial.print(", calibrationPoint0.alt: ");
+  Serial.print(calibrationPoint0.alt);
+  Serial.print(", calibrationPoint1.alt: ");
+  Serial.print(calibrationPoint1.alt);
   Serial.print(", haMotor1: ");
   Serial.print(haMotor1);
   Serial.print(", haMotor2: ");
@@ -110,8 +110,8 @@ void reportStatus() {
   Serial.print("0.dec [");
   Serial.print(calibrationPoint0.dec);
   Serial.print("], ");
-  Serial.print("0.ha [");
-  Serial.print(calibrationPoint0.ha);
+  Serial.print("0.alt [");
+  Serial.print(calibrationPoint0.alt);
   Serial.print("], ");
   Serial.print("0.azm [");
   Serial.print(calibrationPoint0.azm);
@@ -128,8 +128,8 @@ void reportStatus() {
   Serial.print("1.dec [");
   Serial.print(calibrationPoint1.dec);
   Serial.print("], ");
-  Serial.print("1.ha [");
-  Serial.print(calibrationPoint1.ha);
+  Serial.print("1.alt [");
+  Serial.print(calibrationPoint1.alt);
   Serial.print("], ");
   Serial.print("1.azm [");
   Serial.print(calibrationPoint1.azm);
@@ -192,8 +192,8 @@ void reportStatus() {
   Serial.print("dec [");
   Serial.print(dec);
   Serial.print("], ");
-  Serial.print("ha [");
-  Serial.print(ha);
+  Serial.print("alt [");
+  Serial.print(alt);
   Serial.print("], ");
   Serial.print("azm [");
   Serial.print(azm);

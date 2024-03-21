@@ -319,7 +319,7 @@ void drawAzimuthAltitude() {
     case 5:
       printLcdAt(0, 0, "> HA/ AZM:      ");
       printLcdAt(0, 1, "                ");
-      printLcdFloatingPointNumber(0, 1, ha, 7, 4);
+      printLcdFloatingPointNumber(0, 1, alt, 7, 4);
       printLcdFloatingPointNumber(8, 1, azm, 7, 4);
       break;
     case 6:

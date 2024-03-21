@@ -121,7 +121,7 @@ typedef struct {
   double ra;
   double dec;
   double lst;
-  double ha;
+  double alt;
   double azm;
   long horizontalPosition;
   long verticalPosition;
@@ -178,7 +178,7 @@ double julianDate;
 double timeOfDay;
 double gstTime;
 double lst;
-double ha;
+double alt;
 double azm;
 
 double lastStarRa = -999;
@@ -427,7 +427,7 @@ void storeCalibrateCoordinates() {
   usePoint->ra = calibratingTarget->ra;
   usePoint->dec = calibratingTarget->dec;
   usePoint->lst = lst;
-  usePoint->ha = ha;
+  usePoint->alt = alt;
   usePoint->azm = azm;
   usePoint->horizontalPosition = horizontalMotor->getCurrentPosition(); 
   usePoint->verticalPosition = verticalMotor->getCurrentPosition(); 
@@ -455,8 +455,8 @@ void storeCalibrationData() {
   calibrated = 1;
   ledIncrement = 1;
 
-  ha1 = calibrationPoint0.ha;
-  ha2 = calibrationPoint1.ha;
+  ha1 = calibrationPoint0.alt;
+  ha2 = calibrationPoint1.alt;
   haMotor1 = calibrationPoint0.verticalPosition;
   haMotor2 = calibrationPoint1.verticalPosition;
   azm1 = calibrationPoint0.azm;
@@ -472,28 +472,28 @@ void storeCalibrationData() {
 }
 
 void moveMotorsTracking() {
-  newVerticalPos = mapDouble(ha, ha1, ha2, haMotor1, haMotor2);
+  newVerticalPos = mapDouble(alt, ha1, ha2, haMotor1, haMotor2);
   newHorizontalPos = mapDouble(azm, azm1, azm2, azmMotor1, azmMotor2);
   // if (logMotorsTime > 1000) { 
   //   Serial.println();
   //   Serial.print("newVerticalPos: ");
   //   Serial.print(newVerticalPos);
-  //   Serial.print(", ha: ");
-  //   Serial.print(ha);
-  //   Serial.print(", ha * 10000.0: ");
-  //   Serial.print(ha * 10000.0);
+  //   Serial.print(", alt: ");
+  //   Serial.print(alt);
+  //   Serial.print(", alt * 10000.0: ");
+  //   Serial.print(alt * 10000.0);
   //   Serial.print(", ha1: ");
   //   Serial.print(ha1);
   //   Serial.print(", ha2: ");
   //   Serial.print(ha2);
-  //   Serial.print(", calibrationPoint0.ha: ");
-  //   Serial.print(calibrationPoint0.ha);
-  //   Serial.print(", calibrationPoint1.ha: ");
-  //   Serial.print(calibrationPoint1.ha);
-  //   Serial.print(", calibrationPoint0.ha * 10000.0: ");
-  //   Serial.print(calibrationPoint0.ha * 10000.0);
-  //   Serial.print(", calibrationPoint1.ha * 10000.0: ");
-  //   Serial.print(calibrationPoint1.ha * 10000.0);
+  //   Serial.print(", calibrationPoint0.alt: ");
+  //   Serial.print(calibrationPoint0.alt);
+  //   Serial.print(", calibrationPoint1.alt: ");
+  //   Serial.print(calibrationPoint1.alt);
+  //   Serial.print(", calibrationPoint0.alt * 10000.0: ");
+  //   Serial.print(calibrationPoint0.alt * 10000.0);
+  //   Serial.print(", calibrationPoint1.alt * 10000.0: ");
+  //   Serial.print(calibrationPoint1.alt * 10000.0);
   //   Serial.print(", ");
   //   Serial.print(haMotor1);
   //   Serial.print(", ");

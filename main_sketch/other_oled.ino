@@ -16,7 +16,7 @@ void refreshOled() {
   for (int pixelLocation = 16; pixelLocation < SCREEN_HEIGHT; pixelLocation += 2) {
     oledDisplay.drawPixel(azimuthLineLocation, pixelLocation, WHITE);
   }
-  int haLineLocation = mapDouble(ha, 90, -90, 16, SCREEN_HEIGHT);
+  int haLineLocation = mapDouble(alt, 90, -90, 16, SCREEN_HEIGHT);
   for (int pixelLocation = 0; pixelLocation < SCREEN_WIDTH; pixelLocation += 2) {
     oledDisplay.drawPixel(pixelLocation, haLineLocation, WHITE);
   }
@@ -49,7 +49,7 @@ void refreshOled() {
 
   oledDisplay.setCursor(0,8);             // Start at top-left corner
   oledDisplay.print("AT:");
-  oledDisplay.print(ha, 3);
+  oledDisplay.print(alt, 3);
   oledDisplay.print(",AZ:");
   oledDisplay.print(azm, 3);
 

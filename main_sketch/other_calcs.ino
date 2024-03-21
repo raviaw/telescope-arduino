@@ -79,7 +79,7 @@ void azimuthAltitudeCalculation() { //This section calculates the Azimuth and th
     azm = 2 * PI - a;
   }
 
-  ha = alt * radiansConversion;
+  alt = alt * radiansConversion;
   azm = azm * radiansConversion;
   // alt = alt * radiansConversion;
 }
@@ -110,7 +110,7 @@ void azimuthAltitudeCalculationOld() { //This section calculates the Azimuth and
     az = 360.0 - az;
   }
   
-  ha = alt;
+  alt = alt;
   azm = az;
 }
 
