@@ -61,6 +61,7 @@ elapsedMillis buttonTime;
 elapsedMillis moveMotorsTime;
 elapsedMillis logMotorsTime;
 elapsedMillis oledRefreshTime;
+elapsedMillis androidRefreshTime;
 
 // region Menu modes
 //
@@ -286,6 +287,8 @@ void setup() {
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT);
+
+  analogWrite(8, 240);
 }
 
 void loop() {
@@ -328,15 +331,16 @@ void loop() {
     char nextChar = Serial1.read();
     if (nextChar != -1) { 
       if (nextChar == '\n') {
-        serialBuffer[serialBufferPointer] = 0;
-        Serial.print("Received serial coordinates: ");
-        Serial.write(serialBuffer);
-        Serial.println();
+        if (serialBufferPointer > 0) {
+          serialBuffer[serialBufferPointer] = 0;
+          Serial.print("Received serial coordinates: ");
+          Serial.write(serialBuffer);
+          Serial.println();
+        
+          processInput(serialBuffer);
+        }
         serialBufferPointer = 0;
-        Serial1.write("Processing coordinates...");
-        processCoordinates(serialBuffer);
-      } 
-      if(serialBufferPointer < sizeof(serialBuffer) -1) {
+      } else if(serialBufferPointer < sizeof(serialBuffer) -1) {
         serialBuffer[serialBufferPointer] = nextChar;
         serialBufferPointer++;
       }    
@@ -390,17 +394,16 @@ void loop() {
     ledTime = 0;
   }
   
+  if (androidRefreshTime > 1000) {
+    reportBluetooth();
+    androidRefreshTime = 0;
+  }
+  
   if (oledRefreshTime > 1000) {
     refreshOled();
+    
     oledRefreshTime = 0;
   }
-}
-
-void processCoordinates(char* serialBuffer) {
-  String serialString = String(serialBuffer);
-  int splitIndex = serialString.indexOf(" ");
-  ra = serialString.substring(0, splitIndex).toDouble();
-  dec = serialString.substring(splitIndex + 1, serialString.length()).toDouble();
 }
 
 void calculateEverything() {

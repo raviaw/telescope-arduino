@@ -44,6 +44,13 @@ void reportStatus() {
   Serial.print(azmMotor2);
   Serial.print(", ");
 
+   Serial.print("R1: [");
+   Serial.print(analogRead(2));
+   Serial.print("], ");
+   Serial.print("R2: [");
+   Serial.print(analogRead(3));
+   Serial.print("], ");
+
 //   int currentButtonValue = analogRead(LCD_INPUT_BUTTON);
 //   Serial.print("B: [");
 //   Serial.print(currentButtonValue);
