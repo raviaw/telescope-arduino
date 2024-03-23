@@ -23,6 +23,12 @@ void registerButton() {
   if (digitalRead(ACTION_INPUT_BUTTON)) {
     newAction = SELECT;
   }
+  if (digitalRead(COARSE_JOYSTICK_BUTTON) == 0) {
+    newAction = SELECT;
+  }
+  if (digitalRead(FINE_JOYSTICK_BUTTON) == 0) {
+    newAction = SELECT;
+  }
   
   if (selectActionIndex == 0) {
     selectButtonAction1 = newAction;
@@ -40,6 +46,7 @@ void registerButton() {
   }
   
   registerKnobNavigation();
+  registerJoystickNavigation();
 }
 
 void registerKnobNavigation() {
@@ -51,6 +58,30 @@ void registerKnobNavigation() {
     selectedChoice = 0;
   } else if (selectedChoice < 0) {
     selectedChoice = maxChoice;
+  }
+}
+
+void registerJoystickNavigation() {
+  newHorizontalValue = translatePotValueToSpeed(potHorizontalJoystickCoarse, -1);
+  newVerticalValue = translatePotValueToSpeed(potVerticalJoystickCoarse, 1);
+  
+  if (newHorizontalValue < -60) {
+    lastJoystickNavigationValue = -2; 
+  } else if (newHorizontalValue > 60) {
+    lastJoystickNavigationValue = +2;
+  } else if (newVerticalValue < -60) {
+    lastJoystickNavigationValue = -1; 
+  } else if (newVerticalValue > 60) {
+    lastJoystickNavigationValue = +1; 
+  } else if (newHorizontalValue == 0 && newVerticalValue == 0 && lastJoystickNavigationValue != 0) {
+    selectedChoice += lastJoystickNavigationValue;
+    if (selectedChoice > maxChoice) {
+      selectedChoice = 0;
+    } else if (selectedChoice < 0) {
+      selectedChoice = maxChoice;
+    }
+    
+    lastJoystickNavigationValue = 0;
   }
 }
 
@@ -204,12 +235,12 @@ void drawFindMenu() {
 
 void drawMovingCoordinates() {
   maxChoice = 0;
-  renderMenuOptions(" < H:    V:     ","                ");
+  renderMenuOptions("                ","                ");
 
-  printLcdNumber(5, 0, horizontalSpeed, 0);
-  printLcdNumber(11, 0, verticalSpeed, 0);
-  printLcdNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
-  printLcdNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
+  printLcdFloatingPointNumber(5, 0, horizontalCoordinateSpeed, 0, 2);
+  printLcdFloatingPointNumber(11, 0, verticalCoordinateSpeed, 0, 2);
+  printLcdFloatingPointNumber(0, 1, dec, 5, 3);
+  printLcdFloatingPointNumber(8, 1, ra, 5, 3);
 }
 
 void drawMovingMotor() {
@@ -384,6 +415,7 @@ void printLcdAt(int horizontalPosition, int verticalPosition, String text) {
 }
 
 void resetSpeeds() {
+  // Do nothing
 }
 
 void prepareToRenderStars() {
@@ -515,7 +547,7 @@ void buttonLeft() {
   }
 }
 
-int translatePotValueToSpeed(int value) {
+int translatePotValueToSpeed(int value, int multiplyFactor) {
   int testValue; 
   if (value < 512) {
     testValue = 512 - value;
@@ -531,6 +563,6 @@ int translatePotValueToSpeed(int value) {
   if (testValue < 30) {
     return 0; 
   } else {
-    return multiply * ((testValue -30) / (480 / 100)); // 100 stops 
+    return multiplyFactor * multiply * ((testValue -30) / (480 / 100)); // 100 stops 
   }
 }

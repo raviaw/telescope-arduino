@@ -10,6 +10,11 @@ void reportBluetooth() {
   Serial1.print(", CAL: ");
   Serial1.print(calibrated);
   Serial1.println();
+  Serial1.print("M AZM POS:  ");
+  Serial1.print(horizontalMotor->getCurrentPosition());
+  Serial1.print(", M ALT POS: ");
+  Serial1.print(verticalMotor->getCurrentPosition());
+  Serial1.println();
 }
 
 void processInput(char* serialBuffer) {

@@ -9,9 +9,7 @@ void reportStatus() {
   Serial.print(loopsPerSec);
   Serial.print("], ");
 
-  Serial.print("newVerticalPos: ");
-  Serial.print(newVerticalPos);
-  Serial.print(", alt: ");
+  Serial.print("alt: ");
   Serial.print(alt);
   Serial.print(", alt1: ");
   Serial.print(alt1);
@@ -25,9 +23,6 @@ void reportStatus() {
   Serial.print(altMotor1);
   Serial.print(", altMotor2: ");
   Serial.print(altMotor2);
-  Serial.print(", ");
-  Serial.print("newHorizontalPos: ");
-  Serial.print(newHorizontalPos);
   Serial.print(", azm: ");
   Serial.print(azm);
   Serial.print(", azm1: ");
@@ -68,28 +63,29 @@ void reportStatus() {
 //   Serial.print(knob.read());
 //   Serial.print("], ");
   
-  Serial.print("H: ");
-  Serial.print("motor. speed hz(): ");
-  Serial.print(horizontalMotor->getCurrentSpeedInMilliHz());
-  Serial.print(", pos: ");
-  Serial.print(horizontalMotor->getCurrentPosition());
-  Serial.print(", wantedPos: ");
-  Serial.print(newHorizontalPos);
-  Serial.print(", ");
-
-  Serial.print("V: ");
-  Serial.print("motor. speed hz(): ");
-  Serial.print(verticalMotor->getCurrentSpeedInMilliHz());
-  Serial.print(", pos: ");
-  Serial.print(verticalMotor->getCurrentPosition());
-  Serial.print(", wantedPos: ");
-  Serial.print(newVerticalPos);
-  Serial.print(", ");
-
   Serial.print("pot H: ");
   Serial.print(potHorizontal);
   Serial.print(", Pot V: ");
   Serial.print(potVertical);
+  Serial.print(", coarse H: ");
+  Serial.print(potHorizontalJoystickCoarse);
+  Serial.print(", coarse V: ");
+  Serial.print(potVerticalJoystickCoarse);
+  Serial.print(", fine H: ");
+  Serial.print(potHorizontalJoystickFine);
+  Serial.print(", fine V: ");
+  Serial.print(potVerticalJoystickFine);
+  Serial.print(", coarse B: ");
+  Serial.print(digitalRead(COARSE_JOYSTICK_BUTTON));
+  Serial.print(", ");
+  Serial.print("fine B: ");
+  Serial.print(digitalRead(FINE_JOYSTICK_BUTTON));
+  Serial.print(", newHorizontalValue: ");
+  Serial.print(newHorizontalValue);
+  Serial.print(", newVerticalValue: ");
+  Serial.print(newVerticalValue);
+  Serial.print(", lastJoystickNavigationValue: ");
+  Serial.print(lastJoystickNavigationValue);
   Serial.print(", ");
 
   Serial.print("RTC[");
@@ -227,6 +223,42 @@ void reportStatus() {
   Serial.print("sinHa [");
   Serial.print(sinHa);
   Serial.print("]");
+  
+  float maxHorizontalPercentage = mapDouble(abs(horizontalMotor->getCurrentSpeedInUs()), 0, horizontalMotor->getMaxSpeedInUs(), 0, 100.0);
+
+  Serial.println();
+  Serial.print("HORIZONTAL: ");
+  Serial.print("newHorizontalPos: ");
+  Serial.print(newHorizontalPos);
+  Serial.print(", motor. speed ticks(): ");
+  Serial.print(horizontalMotor->getCurrentSpeedInUs());
+  Serial.print("/ ");
+  Serial.print(horizontalMotor->getMaxSpeedInUs());
+  Serial.print(", pos: ");
+  Serial.print(horizontalMotor->getCurrentPosition());
+  Serial.print(", %: ");
+  Serial.print(maxHorizontalPercentage);
+  Serial.print(", wantedPos: ");
+  Serial.print(newHorizontalPos);
+  Serial.print(", ");
+
+  float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
+
+  Serial.println();
+  Serial.print("VERTICAL: ");
+  Serial.print("newVerticalPos: ");
+  Serial.print(newVerticalPos);
+  Serial.print(", motor. speed ticks(): ");
+  Serial.print(verticalMotor->getCurrentSpeedInUs());
+  Serial.print("/ ");
+  Serial.print(verticalMotor->getMaxSpeedInUs());
+  Serial.print(", pos: ");
+  Serial.print(verticalMotor->getCurrentPosition());
+  Serial.print(", %: ");
+  Serial.print(maxVerticalPercentage);
+  Serial.print(", wantedPos: ");
+  Serial.print(newVerticalPos);
+  Serial.print("");
 
   Serial.println();
 }

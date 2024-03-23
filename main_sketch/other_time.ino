@@ -61,8 +61,8 @@ void calculateTime() {
   currentDay = now.day();
   currentMonth = now.month();
   currentYear = now.year();
-  
+  // Something here is fishy
   currentSecOfDay = (currentHour * 3600L) + (currentMinute * 60L) + currentSecond;
-  timeOfDay = currentSecOfDay / 3600.0D;
+  timeOfDay = currentSecOfDay / (3600.0D);
 }
 

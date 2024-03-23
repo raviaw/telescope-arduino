@@ -44,11 +44,25 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define HORIZONTAL_STEPPER_STEP_PIN 7
 #define HORIZONTAL_STEPPER_DIR_PIN 24
 
+#define HORIZONTAL_JOYSTICK_COARSE 3
+#define HORIZONTAL_JOYSTICK_FINE 2
+#define VERTICAL_JOYSTICK_COARSE 0
+#define VERTICAL_JOYSTICK_FINE 6
 #define LCD_INPUT_BUTTON 1
+#define HORIZONTAL_POT 4
+#define VERTICAL_POT 5
 #define REFERENCE_INPUT_BUTTON 7
 #define ACTION_INPUT_BUTTON 52
 #define ENCODER_INPUT_BUTTON 48
 #define BACK_INPUT_BUTTON 46
+#define COARSE_JOYSTICK_BUTTON 32
+#define FINE_JOYSTICK_BUTTON 30
+
+#define POT 1
+#define REFERENCE_INPUT_BUTTON 7
+
+#define HORIZONTAL_LED 26
+#define VERTICAL_LED 28
 
 //
 // endregion
@@ -62,6 +76,15 @@ elapsedMillis moveMotorsTime;
 elapsedMillis logMotorsTime;
 elapsedMillis oledRefreshTime;
 elapsedMillis androidRefreshTime;
+elapsedMillis horizontalBlinkTimer;
+elapsedMillis verticalBlinkTimer;
+
+int horizontalBlinkOnTime = 10;
+int horizontalBlinkOffTime = 1000;
+int horizontalBlinkState = 0; // 0 OFF, 1 ON
+int verticalBlinkOnTime = 10;
+int verticalBlinkOffTime = 1000;
+int verticalBlinkState = 0; // 0 OFF, 1 ON
 
 // region Menu modes
 //
@@ -96,17 +119,26 @@ int lastSelectButtonAction = -1;
 int selectedChoice = 0;
 int maxChoice = 0;
 
+int newHorizontalValue;
+int newVerticalValue;
+
 int activeMode = MODE_MENU;
 
 //int lcdStarIndex = 0;
 int lcdSelectedStar = -1;
 
-int potHorizontal;
-int potVertical;
+int potHorizontal = 0;
+int potVertical = 0;
+int potHorizontalJoystickCoarse = 0;
+int potVerticalJoystickCoarse = 0;
+int potHorizontalJoystickFine = 0;
+int potVerticalJoystickFine = 0;
 int ledPower = 0;
 int ledIncrement = 3;
 
 long lastKnobValue = 0;
+
+int lastJoystickNavigationValue = 0;
 //
 // endregion
 
@@ -269,6 +301,7 @@ void setup() {
   parseReceivedTimeString("2024-03-16 23:40:50.123");
 
   engine.init();
+  // engine.setDebugLed(26);
   verticalMotor = engine.stepperConnectToPin(VERTICAL_STEPPER_STEP_PIN);
   if (verticalMotor) {
     verticalMotor->setDirectionPin(VERTICAL_STEPPER_DIR_PIN);
@@ -287,6 +320,10 @@ void setup() {
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT);
+  pinMode(COARSE_JOYSTICK_BUTTON, INPUT_PULLUP);
+  pinMode(FINE_JOYSTICK_BUTTON, INPUT_PULLUP);
+  pinMode(HORIZONTAL_LED, OUTPUT);
+  pinMode(VERTICAL_LED, OUTPUT);
 
   analogWrite(8, 240);
 }
@@ -352,15 +389,16 @@ void loop() {
   registerButton();
 
   if (calcTime > 25) {
-    potHorizontal = analogRead(4);
-    potVertical = analogRead(5);
+    potHorizontal = analogRead(HORIZONTAL_POT);
+    potVertical = analogRead(VERTICAL_POT);
+    potHorizontalJoystickCoarse = analogRead(HORIZONTAL_JOYSTICK_COARSE);
+    potVerticalJoystickCoarse = analogRead(VERTICAL_JOYSTICK_COARSE);
+    potHorizontalJoystickFine = analogRead(HORIZONTAL_JOYSTICK_FINE);
+    potVerticalJoystickFine = analogRead(VERTICAL_JOYSTICK_FINE);
 
     //
     calculateEverything();
    
-    //
-    moveMotors();
-
     calcTime = 0;
   }
   
@@ -404,6 +442,33 @@ void loop() {
     
     oledRefreshTime = 0;
   }
+
+  if (logMotorsTime > 100) {
+    float maxHorizontalPercentage = mapDouble(abs(horizontalMotor->getCurrentSpeedInUs()), 0, horizontalMotor->getMaxSpeedInUs(), 0, 100.0);
+    float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
+
+    logMotorsTime = 0;
+  }
+  
+  if (horizontalBlinkState == 0 && horizontalBlinkTimer > horizontalBlinkOffTime) {
+    horizontalBlinkTimer = 0;
+    horizontalBlinkState = 1;
+    digitalWrite(HORIZONTAL_LED, HIGH);
+  } else if (horizontalBlinkState == 1 && horizontalBlinkTimer > horizontalBlinkOnTime) { 
+    horizontalBlinkTimer = 0;
+    horizontalBlinkState = 0;
+    digitalWrite(HORIZONTAL_LED, LOW);
+  }
+
+  if (verticalBlinkState == 0 && verticalBlinkTimer > verticalBlinkOffTime) {
+    verticalBlinkTimer = 0;
+    verticalBlinkState = 1;
+    digitalWrite(VERTICAL_LED, HIGH);
+  } else if (verticalBlinkState == 1 && verticalBlinkTimer > verticalBlinkOnTime) { 
+    verticalBlinkTimer = 0;
+    verticalBlinkState = 0;
+    digitalWrite(VERTICAL_LED, LOW);
+  }
 }
 
 void calculateEverything() {
@@ -442,15 +507,23 @@ void prepareStarCoordinates() {
 }
 
 void prepareToMoveWithCalibration() {
+    horizontalMotor->setAcceleration(100);
+    horizontalMotor->setAutoEnable(true);
+    verticalMotor->setAcceleration(1500);
+    verticalMotor->setAutoEnable(true);
+    horizontalMotor->setSpeedInHz(MAX_HORIZONTAL_SPEED);
+    verticalMotor->setSpeedInHz(MAX_VERTICAL_SPEED);
+    horizontalMotor->applySpeedAcceleration();
+    verticalMotor->applySpeedAcceleration();
   // Serial.println();
   // Serial.println("Preparing to track - stopping motors");
   // Serial.println();
-  horizontalMotor->setSpeedInHz(0);
-  horizontalMotor->applySpeedAcceleration();
-  horizontalMotor->stopMove();
-  verticalMotor->setSpeedInHz(0);
-  verticalMotor->applySpeedAcceleration();
-  verticalMotor->stopMove();
+//   horizontalMotor->setSpeedInHz(0);
+//   horizontalMotor->applySpeedAcceleration();
+//   horizontalMotor->stopMove();
+//   verticalMotor->setSpeedInHz(0);
+//   verticalMotor->applySpeedAcceleration();
+//   verticalMotor->stopMove();
 }
 
 void storeCalibrationData() {
@@ -530,18 +603,43 @@ void moveMotorsTracking() {
   //   Serial.println();
   //   logMotorsTime = 0;
   // }
-
+  //verticalMotor->setSpeedInHz(1000);
+  //horizontalMotor->setSpeedInHz(1000);
   verticalMotor->moveTo(newVerticalPos);
   horizontalMotor->moveTo(newHorizontalPos);
+}
+
+int readHorizontalPots() {
+  int coarse = translatePotValueToSpeed(potHorizontalJoystickCoarse, -1);
+  if (coarse != 0) {
+    return coarse; 
+  }
+  int fine = translatePotValueToSpeed(potHorizontalJoystickFine, -1) / 20.0;
+  if (fine != 0) {
+    return fine; 
+  }
+  return translatePotValueToSpeed(potHorizontal, -1);
+}
+
+int readVerticalPots() {
+  int coarse = translatePotValueToSpeed(potVerticalJoystickCoarse, -1);
+  if (coarse != 0) {
+    return coarse; 
+  }
+  int fine = translatePotValueToSpeed(potVerticalJoystickFine, -1) / 20.0;
+  if (fine != 0) {
+    return fine; 
+  }
+  return translatePotValueToSpeed(potVertical, -1);
 }
 
 void moveMotors() {
   if (calibrated) {
     if(activeMode == MODE_MOVE_COORDINATES) {
-      int horizontalPotValue = translatePotValueToSpeed(potHorizontal);
-      int verticalPotValue = translatePotValueToSpeed(potVertical);
-      horizontalCoordinateSpeed = map(horizontalSpeed, -120, +120, -1000, +1000) / 100000.0;
-      verticalCoordinateSpeed = map(verticalSpeed, -120, +120, -1000, +1000) / 100000.0;
+      horizontalSpeed = readHorizontalPots();
+      verticalSpeed = readVerticalPots();
+      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -120, +120, -0.001, +0.001);
+      verticalCoordinateSpeed = mapDouble(verticalSpeed, -120, +120, -0.001, +0.001);
       ra += horizontalCoordinateSpeed;
       dec += verticalCoordinateSpeed;
     }
@@ -549,8 +647,8 @@ void moveMotors() {
     moveMotorsTracking();
   } else {
     if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
-      horizontalSpeed = translatePotValueToSpeed(potHorizontal);
-      verticalSpeed = translatePotValueToSpeed(potVertical);
+      horizontalSpeed = readHorizontalPots();
+      verticalSpeed = readVerticalPots();
       horizontalMotorSpeed = map(horizontalSpeed, -120, +120, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
       verticalMotorSpeed = map(verticalSpeed, -120, +120, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
     
