@@ -96,7 +96,6 @@ int verticalBlinkState = 0; // 0 OFF, 1 ON
 #define MODE_AZ_ALT 5
 #define MODE_MOVE_COORDINATES 7
 #define MODE_MOVE_MOTOR 8
-#define MODE_CALIBRATE_PICKED_STAR 9
 #define MODE_CALIBRATE_MOVING 10
 #define MODE_CALIBRATE_STAR_COMPLETE 11
 #define MODE_CALIBRATION_COMPLETE 12
@@ -191,7 +190,6 @@ target* calibratingTarget;
 int calibratingStarIndex = 0;
 calibrationPoint calibrationPoint0;
 calibrationPoint calibrationPoint1;
-calibrationPoint calibrationPoint2;
 int calibrated = 0;
 //
 // endregion
@@ -214,6 +212,9 @@ double lst;
 double alt;
 double azm;
 
+double currentMotorAlt;
+double currentMotorAzm;
+
 double lastStarRa = -999;
 double lastStarDec = -999;
 
@@ -231,15 +232,6 @@ int rtcInitialized = 0;
 
 // region Date/ time variables
 //
-int startYear;
-int startMonth;
-int startDay;
-int startHour;
-int startMinute;
-int startSecond;
-int startMs;
-long startSecOfDay;
-long startTimeMs;
 int currentYear;
 int currentMonth;
 int currentDay;
@@ -296,9 +288,6 @@ void setup() {
 
   oledDisplay.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   oledDisplay.display();
-
-  // This will go away
-  parseReceivedTimeString("2024-03-16 23:40:50.123");
 
   engine.init();
   // engine.setDebugLed(26);
@@ -404,6 +393,7 @@ void loop() {
   
   if (moveMotors > 100) {
     moveMotors();
+    determineLedIntervals();
 
     moveMotorsTime = 0;
   }
@@ -472,9 +462,9 @@ void loop() {
 }
 
 void calculateEverything() {
-  // Time calculation
+  //
   calculateTime();
-    
+  
   //
   // Standard loop cals
   julianDate = julianDateCalc();
@@ -515,15 +505,6 @@ void prepareToMoveWithCalibration() {
     verticalMotor->setSpeedInHz(MAX_VERTICAL_SPEED);
     horizontalMotor->applySpeedAcceleration();
     verticalMotor->applySpeedAcceleration();
-  // Serial.println();
-  // Serial.println("Preparing to track - stopping motors");
-  // Serial.println();
-//   horizontalMotor->setSpeedInHz(0);
-//   horizontalMotor->applySpeedAcceleration();
-//   horizontalMotor->stopMove();
-//   verticalMotor->setSpeedInHz(0);
-//   verticalMotor->applySpeedAcceleration();
-//   verticalMotor->stopMove();
 }
 
 void storeCalibrationData() {
@@ -549,62 +530,6 @@ void storeCalibrationData() {
 void moveMotorsTracking() {
   newVerticalPos = mapDouble(alt, alt1, alt2, altMotor1, altMotor2);
   newHorizontalPos = mapDouble(azm, azm1, azm2, azmMotor1, azmMotor2);
-  // if (logMotorsTime > 1000) { 
-  //   Serial.println();
-  //   Serial.print("newVerticalPos: ");
-  //   Serial.print(newVerticalPos);
-  //   Serial.print(", alt: ");
-  //   Serial.print(alt);
-  //   Serial.print(", alt * 10000.0: ");
-  //   Serial.print(alt * 10000.0);
-  //   Serial.print(", alt1: ");
-  //   Serial.print(alt1);
-  //   Serial.print(", alt2: ");
-  //   Serial.print(alt2);
-  //   Serial.print(", calibrationPoint0.alt: ");
-  //   Serial.print(calibrationPoint0.alt);
-  //   Serial.print(", calibrationPoint1.alt: ");
-  //   Serial.print(calibrationPoint1.alt);
-  //   Serial.print(", calibrationPoint0.alt * 10000.0: ");
-  //   Serial.print(calibrationPoint0.alt * 10000.0);
-  //   Serial.print(", calibrationPoint1.alt * 10000.0: ");
-  //   Serial.print(calibrationPoint1.alt * 10000.0);
-  //   Serial.print(", ");
-  //   Serial.print(altMotor1);
-  //   Serial.print(", ");
-  //   Serial.print(altMotor2);
-  //   Serial.print("");
-  //   Serial.println();
-
-  //   Serial.println();
-  //   Serial.print("newHorizontalPos: ");
-  //   Serial.print(newHorizontalPos);
-  //   Serial.print(", azm: ");
-  //   Serial.print(azm);
-  //   Serial.print(", azm * 10000.0: ");
-  //   Serial.print(azm * 10000.0);
-  //   Serial.print(", azm1: ");
-  //   Serial.print(azm1);
-  //   Serial.print(", azm2: ");
-  //   Serial.print(azm2);
-  //   Serial.print(", calibrationPoint0.azm: ");
-  //   Serial.print(calibrationPoint0.azm);
-  //   Serial.print(", calibrationPoint1.azm: ");
-  //   Serial.print(calibrationPoint1.azm);
-  //   Serial.print(", calibrationPoint0.azm * 10000.0: ");
-  //   Serial.print(calibrationPoint0.azm * 10000.0);
-  //   Serial.print(", calibrationPoint1.azm * 10000.0: ");
-  //   Serial.print(calibrationPoint1.azm * 10000.0);
-  //   Serial.print(", ");
-  //   Serial.print(azmMotor1);
-  //   Serial.print(", ");
-  //   Serial.print(azmMotor2);
-  //   Serial.print("");
-  //   Serial.println();
-  //   logMotorsTime = 0;
-  // }
-  //verticalMotor->setSpeedInHz(1000);
-  //horizontalMotor->setSpeedInHz(1000);
   verticalMotor->moveTo(newVerticalPos);
   horizontalMotor->moveTo(newHorizontalPos);
 }
@@ -638,14 +563,20 @@ void moveMotors() {
     if(activeMode == MODE_MOVE_COORDINATES) {
       horizontalSpeed = readHorizontalPots();
       verticalSpeed = readVerticalPots();
-      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -120, +120, -0.001, +0.001);
-      verticalCoordinateSpeed = mapDouble(verticalSpeed, -120, +120, -0.001, +0.001);
+      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -120, +120, -1, +1) / 1000.0;
+      verticalCoordinateSpeed = mapDouble(verticalSpeed, -120, +120, -1, +1) / 1000.0;
       ra += horizontalCoordinateSpeed;
       dec += verticalCoordinateSpeed;
     }
     
+    currentMotorAlt = mapDouble(verticalMotor->getCurrentPosition(), altMotor1, altMotor2, alt1, alt2);
+    currentMotorAzm = mapDouble(horizontalMotor->getCurrentPosition(), azmMotor1, azmMotor2, azm1, azm2);
+
     moveMotorsTracking();
   } else {
+    currentMotorAlt = alt;
+    currentMotorAzm = azm;
+
     if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
       horizontalSpeed = readHorizontalPots();
       verticalSpeed = readVerticalPots();
@@ -705,4 +636,13 @@ void moveMotors() {
   }
 //   horizontalMotor->move(horizontalMotorSpeed * horizontalMultiplier);
 //   verticalMotor->move(verticalMotorSpeed * verticalMultiplier);
+}
+
+void determineLedIntervals() {
+  double azmDifference = abs(azm - currentMotorAzm);
+  double altDifference = abs(alt - currentMotorAlt);
+  horizontalBlinkOnTime = azmDifference * 100;  
+  horizontalBlinkOffTime = 1000 - horizontalBlinkOnTime; 
+  verticalBlinkOnTime = altDifference * 100;  
+  verticalBlinkOffTime = 1000 - verticalBlinkOnTime; 
 }

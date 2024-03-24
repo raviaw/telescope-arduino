@@ -141,9 +141,6 @@ void buttonSelect() {
     calibratingTarget = &targets[selectedChoice];
     prepareStarCoordinates();
     activeMode = MODE_CALIBRATE_MOVING;
-//   } else if(activeMode == MODE_CALIBRATE_PICKED_STAR) {
-//     prepareStarCoordinates();
-//     activeMode = MODE_CALIBRATE_MOVING;
   } else if(activeMode == MODE_CALIBRATE_MOVING) {
     if (calibratingStarIndex < 1) {
       storeCalibrateCoordinates();
@@ -261,20 +258,20 @@ void drawMovingMotor() {
 //   printLcdNumber(15, 1, calibratingStarIndex, 0);
 // }
 
-void drawCalibratePickedStar() {
-  maxChoice = 0;
-  lcd.setCursor(0, 0); 
-  lcd.print("                ");
-  lcd.setCursor(0, 1); 
-  lcd.print("                "); 
-  
-  printLcdAt(0, 0, "Find");
-  printLcdAt(5, 0, calibratingTarget->name);
-  lcd.print(":");
-  printLcdFloatingPointNumber(0, 1, calibratingTarget->ra, 7, 4);
-  printLcdFloatingPointNumber(8, 1, calibratingTarget->dec, 7, 4);
-}
-
+// void drawCalibratePickedStar() {
+//   maxChoice = 0;
+//   lcd.setCursor(0, 0); 
+//   lcd.print("                ");
+//   lcd.setCursor(0, 1); 
+//   lcd.print("                "); 
+//   
+//   printLcdAt(0, 0, "Find");
+//   printLcdAt(5, 0, calibratingTarget->name);
+//   lcd.print(":");
+//   printLcdFloatingPointNumber(0, 1, calibratingTarget->ra, 7, 4);
+//   printLcdFloatingPointNumber(8, 1, calibratingTarget->dec, 7, 4);
+// }
+// 
 void drawCalibrateMoving() {
   maxChoice = 0;
   renderMenuOptions(" < H:    V:     ","                ");
@@ -430,7 +427,7 @@ void drawRenderStars() {
   lcd.setCursor(0, 1); 
   lcd.print("                "); 
   
-  printLcdAt(0, 0, "Star ");
+  printLcdAt(0, 0, "Find ");
   printLcdAt(5, 0, useTarget->name);
   lcd.print(":");
   

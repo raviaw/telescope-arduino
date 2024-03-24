@@ -1,6 +1,9 @@
 void refreshOled() {
   oledDisplay.clearDisplay(); // Clear display buffer
   
+  int azimuthLineLocation;
+  int altLineLocation;
+  
   // right ascension 0 to 24
   // declination -90 to +90
   int raLineLocation = mapDouble(ra, 0, 24, 0, SCREEN_WIDTH);
@@ -12,11 +15,11 @@ void refreshOled() {
 
   // right ascension 0 to 24
   // declination -90 to +90
-  int azimuthLineLocation = mapDouble(azm, 0, 360, 0, SCREEN_WIDTH);
+  azimuthLineLocation = mapDouble(azm, 0, 360, 0, SCREEN_WIDTH);
   for (int pixelLocation = 16; pixelLocation < SCREEN_HEIGHT; pixelLocation += 2) {
     oledDisplay.drawPixel(azimuthLineLocation, pixelLocation, WHITE);
   }
-  int altLineLocation = mapDouble(alt, 90, -90, 16, SCREEN_HEIGHT);
+  altLineLocation = mapDouble(alt, 90, -90, 16, SCREEN_HEIGHT);
   for (int pixelLocation = 0; pixelLocation < SCREEN_WIDTH; pixelLocation += 2) {
     oledDisplay.drawPixel(pixelLocation, altLineLocation, WHITE);
   }
@@ -34,6 +37,23 @@ void refreshOled() {
       oledDisplay.drawPixel(pixelLocation, decFindLineLocation, WHITE);
     }
   }
+  if (calibrated) {
+   double currentMotorAlt = mapDouble(verticalMotor->getCurrentPosition(), altMotor1, altMotor2, alt1, alt2);
+   double currentMotorAzm = mapDouble(horizontalMotor->getCurrentPosition(), azmMotor1, azmMotor2, azm1, azm2);
+
+    if (abs(currentMotorAzm - azm) > 0.01) {
+      azimuthLineLocation = mapDouble(currentMotorAzm, 0, 360, 0, SCREEN_WIDTH);
+      for (int pixelLocation = 16 + (currentSecOfDay % 5); pixelLocation < SCREEN_HEIGHT; pixelLocation += 5) {
+        oledDisplay.drawPixel(azimuthLineLocation, pixelLocation, WHITE);
+      }
+    }
+    if (abs(currentMotorAlt - alt) > 0.01) {
+      altLineLocation = mapDouble(currentMotorAlt, 90, -90, 16, SCREEN_HEIGHT);
+      for (int pixelLocation = (currentSecOfDay % 5); pixelLocation < SCREEN_WIDTH; pixelLocation += 5) {
+        oledDisplay.drawPixel(pixelLocation, altLineLocation, WHITE);
+      }
+    }
+ }
   //oledDisplay.drawLine(raLineLocation, 16, azimuthLineLocation, SCREEN_HEIGHT, WHITE);
 
   //int decLineLocation = mapDouble(dec, -90, 90, 16, SCREEN_HEIGHT);

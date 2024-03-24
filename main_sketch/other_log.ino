@@ -174,9 +174,6 @@ void reportStatus() {
   Serial.print("julianDate [");
   Serial.print(julianDate);
   Serial.print("], ");
-  Serial.print("startSecOfDay [");
-  Serial.print(startSecOfDay);
-  Serial.print("], ");
   Serial.print("currentSecOfDay [");
   Serial.print(currentSecOfDay);
   Serial.print("], ");

@@ -31,29 +31,19 @@ void parseReceivedTimeString(char* timeString) {
   strncpy(second, &timeString[17], 2);
   strncpy(ms, &timeString[20], 3);
 
-  startYear = atoi(year);
-  startMonth = atoi(month);
-  startDay = atoi(day);
-  startHour = atoi(hour);
-  startMinute = atoi(minute);
-  startSecond = atoi(second);
-  startMs = atoi(ms);
-  startTimeMs = millis();
-  startSecOfDay = (startHour * 3600L) + (startMinute * 60L) + startSecond;
-
-  currentYear = startYear;
-  currentMonth = startMonth;
-  currentDay = startDay;
-  currentHour = startHour;
-  currentMinute = startMinute;
-  currentSecond = startSecond;
-  currentMs = startMs;
-  currentSecOfDay = startSecOfDay;
+  currentYear = atoi(year);
+  currentMonth = atoi(month);
+  currentDay = atoi(day);
+  currentHour = atoi(hour);
+  currentMinute = atoi(minute);
+  currentSecond = atoi(second);
+  currentMs = atoi(ms);
+  currentSecOfDay = (currentHour * 3600L) + (currentMinute * 60L) + currentSecond;
+  
+  // This method may be used to set the RTC clock based on a value received over bluetooth...
 }
 
 void calculateTime() {
-  // startSecOfDay = (startHour * 3600) + (startMinute * 60) + startSecond;
-
   DateTime now = rtc.now();
   currentHour = now.hour();
   currentMinute = now.minute();
