@@ -139,10 +139,11 @@ void buttonSelect() {
     activeMode = MODE_MENU;
   } else if(activeMode == MODE_CALIBRATING) {
     calibratingTarget = &targets[selectedChoice];
-    activeMode = MODE_CALIBRATE_PICKED_STAR;
-  } else if(activeMode == MODE_CALIBRATE_PICKED_STAR) {
     prepareStarCoordinates();
     activeMode = MODE_CALIBRATE_MOVING;
+//   } else if(activeMode == MODE_CALIBRATE_PICKED_STAR) {
+//     prepareStarCoordinates();
+//     activeMode = MODE_CALIBRATE_MOVING;
   } else if(activeMode == MODE_CALIBRATE_MOVING) {
     if (calibratingStarIndex < 1) {
       storeCalibrateCoordinates();
@@ -186,8 +187,6 @@ void reportLcd() {
     drawAzimuthAltitude();
   } else if (activeMode == MODE_CALIBRATING) {
     drawRenderStars();
-  } else if (activeMode == MODE_CALIBRATE_PICKED_STAR) {
-    drawCalibratePickedStar();
   } else if (activeMode == MODE_CALIBRATE_MOVING) {
     drawCalibrateMoving();
   } else if (activeMode == MODE_CALIBRATE_STAR_COMPLETE) {
