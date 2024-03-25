@@ -56,6 +56,7 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define ENCODER_INPUT_BUTTON 48
 #define BACK_INPUT_BUTTON 46
 #define COARSE_JOYSTICK_BUTTON 32
+#define ENABLE_POT_BUTTON 34
 #define FINE_JOYSTICK_BUTTON 30
 
 #define POT 1
@@ -308,9 +309,10 @@ void setup() {
   Serial1.begin(9600);
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
-  pinMode(ENCODER_INPUT_BUTTON, INPUT);
+  pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);
   pinMode(COARSE_JOYSTICK_BUTTON, INPUT_PULLUP);
   pinMode(FINE_JOYSTICK_BUTTON, INPUT_PULLUP);
+  pinMode(ENABLE_POT_BUTTON, INPUT_PULLUP);
   pinMode(HORIZONTAL_LED, OUTPUT);
   pinMode(VERTICAL_LED, OUTPUT);
 
@@ -378,8 +380,13 @@ void loop() {
   registerButton();
 
   if (calcTime > 25) {
-    potHorizontal = analogRead(HORIZONTAL_POT);
-    potVertical = analogRead(VERTICAL_POT);
+    if(digitalRead(ENABLE_POT_BUTTON) == 1) {
+      potHorizontal = analogRead(HORIZONTAL_POT);
+      potVertical = analogRead(VERTICAL_POT);
+    } else {
+      potHorizontal = 512;
+      potVertical = 512;
+    }
     potHorizontalJoystickCoarse = analogRead(HORIZONTAL_JOYSTICK_COARSE);
     potVerticalJoystickCoarse = analogRead(VERTICAL_JOYSTICK_COARSE);
     potHorizontalJoystickFine = analogRead(HORIZONTAL_JOYSTICK_FINE);
@@ -563,10 +570,16 @@ void moveMotors() {
     if(activeMode == MODE_MOVE_COORDINATES) {
       horizontalSpeed = readHorizontalPots();
       verticalSpeed = readVerticalPots();
-      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -120, +120, -1, +1) / 1000.0;
-      verticalCoordinateSpeed = mapDouble(verticalSpeed, -120, +120, -1, +1) / 1000.0;
-      ra += horizontalCoordinateSpeed;
-      dec += verticalCoordinateSpeed;
+      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -120, +120, -1, +1) / 500.0;
+      verticalCoordinateSpeed = mapDouble(verticalSpeed, -120, +120, -1, +1) / 500.0;
+      long horizontalMotorDiff = abs(horizontalMotor->getCurrentPosition() - newHorizontalPos);
+      if (horizontalMotorDiff < MAX_HORIZONTAL_SPEED / 2) {
+        ra += horizontalCoordinateSpeed;
+      }
+      long verticalMotorDiff = abs(verticalMotor->getCurrentPosition() - newVerticalPos);
+      if (verticalMotorDiff < MAX_VERTICAL_SPEED / 2) {
+        dec += verticalCoordinateSpeed;
+      }
     }
     
     currentMotorAlt = mapDouble(verticalMotor->getCurrentPosition(), altMotor1, altMotor2, alt1, alt2);

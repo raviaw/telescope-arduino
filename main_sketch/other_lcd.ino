@@ -26,6 +26,9 @@ void registerButton() {
   if (digitalRead(COARSE_JOYSTICK_BUTTON) == 0) {
     newAction = SELECT;
   }
+  if (digitalRead(ENCODER_INPUT_BUTTON) == 0) {
+    newAction = SELECT;
+  }
   if (digitalRead(FINE_JOYSTICK_BUTTON) == 0) {
     newAction = SELECT;
   }

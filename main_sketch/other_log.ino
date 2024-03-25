@@ -63,6 +63,13 @@ void reportStatus() {
 //   Serial.print(knob.read());
 //   Serial.print("], ");
   
+  Serial.print("RE: [");
+  Serial.print(digitalRead(ENCODER_INPUT_BUTTON));
+  Serial.print("], ");
+  Serial.print("POT: [");
+  Serial.print(digitalRead(ENABLE_POT_BUTTON));
+  Serial.print("], ");
+
   Serial.print("pot H: ");
   Serial.print(potHorizontal);
   Serial.print(", Pot V: ");
@@ -74,6 +81,7 @@ void reportStatus() {
   Serial.print(", fine H: ");
   Serial.print(potHorizontalJoystickFine);
   Serial.print(", fine V: ");
+  
   Serial.print(potVerticalJoystickFine);
   Serial.print(", coarse B: ");
   Serial.print(digitalRead(COARSE_JOYSTICK_BUTTON));
