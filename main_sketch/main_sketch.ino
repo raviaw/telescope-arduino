@@ -44,10 +44,10 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define HORIZONTAL_STEPPER_STEP_PIN 7
 #define HORIZONTAL_STEPPER_DIR_PIN 24
 
-#define HORIZONTAL_JOYSTICK_COARSE 3
-#define HORIZONTAL_JOYSTICK_FINE 2
-#define VERTICAL_JOYSTICK_COARSE 0
-#define VERTICAL_JOYSTICK_FINE 6
+#define HORIZONTAL_JOYSTICK_LEFT 3
+#define HORIZONTAL_JOYSTICK_RIGHT 2
+#define VERTICAL_JOYSTICK_LEFT 0
+#define VERTICAL_JOYSTICK_RIGHT 6
 #define LCD_INPUT_BUTTON 1
 #define HORIZONTAL_POT 4
 #define VERTICAL_POT 5
@@ -55,9 +55,9 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define ACTION_INPUT_BUTTON 52
 #define ENCODER_INPUT_BUTTON 48
 #define BACK_INPUT_BUTTON 46
-#define COARSE_JOYSTICK_BUTTON 32
+#define LEFT_JOYSTICK_BUTTON 32
 #define ENABLE_POT_BUTTON 34
-#define FINE_JOYSTICK_BUTTON 30
+#define RIGHT_JOYSTICK_BUTTON 30
 
 #define POT 1
 #define REFERENCE_INPUT_BUTTON 7
@@ -110,6 +110,8 @@ int verticalBlinkState = 0; // 0 OFF, 1 ON
 #define DOWN 3
 #define LEFT 4
 #define SELECT 5
+#define FLIP_LEFT 6
+#define FLIP_RIGHT 7
 
 int selectButtonAction1 = -2;
 int selectButtonAction2 = -2;
@@ -129,12 +131,17 @@ int lcdSelectedStar = -1;
 
 int potHorizontal = 0;
 int potVertical = 0;
-int potHorizontalJoystickCoarse = 0;
-int potVerticalJoystickCoarse = 0;
-int potHorizontalJoystickFine = 0;
-int potVerticalJoystickFine = 0;
+// horizontal right and vertical left are ignored
+int potHorizontalJoystickLeft = 0;
+int potVerticalJoystickRight = 0;
 int ledPower = 0;
 int ledIncrement = 3;
+int leftJoystickDirection = -1;
+int rightJoystickDirection = -1;
+int MAX_LEFT_JOYSTICK_SPEED = 10;
+int leftJoystickSpeed = 0;
+int MAX_RIGHT_JOYSTICK_SPEED = 10;
+int rightJoystickSpeed = 0;
 
 long lastKnobValue = 0;
 
@@ -310,8 +317,8 @@ void setup() {
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);
-  pinMode(COARSE_JOYSTICK_BUTTON, INPUT_PULLUP);
-  pinMode(FINE_JOYSTICK_BUTTON, INPUT_PULLUP);
+  pinMode(LEFT_JOYSTICK_BUTTON, INPUT_PULLUP);
+  pinMode(RIGHT_JOYSTICK_BUTTON, INPUT_PULLUP);
   pinMode(ENABLE_POT_BUTTON, INPUT_PULLUP);
   pinMode(HORIZONTAL_LED, OUTPUT);
   pinMode(VERTICAL_LED, OUTPUT);
@@ -387,10 +394,8 @@ void loop() {
       potHorizontal = 512;
       potVertical = 512;
     }
-    potHorizontalJoystickCoarse = analogRead(HORIZONTAL_JOYSTICK_COARSE);
-    potVerticalJoystickCoarse = analogRead(VERTICAL_JOYSTICK_COARSE);
-    potHorizontalJoystickFine = analogRead(HORIZONTAL_JOYSTICK_FINE);
-    potVerticalJoystickFine = analogRead(VERTICAL_JOYSTICK_FINE);
+    potHorizontalJoystickLeft = analogRead(HORIZONTAL_JOYSTICK_LEFT);
+    potVerticalJoystickRight = analogRead(VERTICAL_JOYSTICK_RIGHT);
 
     //
     calculateEverything();
@@ -541,43 +546,37 @@ void moveMotorsTracking() {
   horizontalMotor->moveTo(newHorizontalPos);
 }
 
-int readHorizontalPots() {
-  int coarse = translatePotValueToSpeed(potHorizontalJoystickCoarse, -1);
-  if (coarse != 0) {
-    return coarse; 
+int readHorizontalControl() {
+  int horizontal = translatePotValueToSpeed(potHorizontalJoystickLeft, leftJoystickDirection);
+  if (horizontal != 0) {
+    return horizontal / max(MAX_LEFT_JOYSTICK_SPEED - leftJoystickSpeed, 1); 
+  } else {
+    return translatePotValueToSpeed(potHorizontal, -1);
   }
-  int fine = translatePotValueToSpeed(potHorizontalJoystickFine, -1) / 20.0;
-  if (fine != 0) {
-    return fine; 
-  }
-  return translatePotValueToSpeed(potHorizontal, -1);
 }
 
-int readVerticalPots() {
-  int coarse = translatePotValueToSpeed(potVerticalJoystickCoarse, -1);
-  if (coarse != 0) {
-    return coarse; 
+int readVerticalControl() {
+  int vertical = translatePotValueToSpeed(potVerticalJoystickRight, rightJoystickDirection);
+  if (vertical != 0) {
+    return vertical / max(MAX_RIGHT_JOYSTICK_SPEED - rightJoystickSpeed, 1); 
+  } else {
+    return translatePotValueToSpeed(potVertical, -1);
   }
-  int fine = translatePotValueToSpeed(potVerticalJoystickFine, -1) / 20.0;
-  if (fine != 0) {
-    return fine; 
-  }
-  return translatePotValueToSpeed(potVertical, -1);
 }
 
 void moveMotors() {
   if (calibrated) {
     if(activeMode == MODE_MOVE_COORDINATES) {
-      horizontalSpeed = readHorizontalPots();
-      verticalSpeed = readVerticalPots();
-      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -120, +120, -1, +1) / 500.0;
-      verticalCoordinateSpeed = mapDouble(verticalSpeed, -120, +120, -1, +1) / 500.0;
+      horizontalSpeed = readHorizontalControl();
+      verticalSpeed = readVerticalControl();
+      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -100, +100, -1, +1) / 500.0; 
+      verticalCoordinateSpeed = mapDouble(verticalSpeed, -100, +100, -1, +1) / 500.0;
       long horizontalMotorDiff = abs(horizontalMotor->getCurrentPosition() - newHorizontalPos);
-      if (horizontalMotorDiff < MAX_HORIZONTAL_SPEED / 2) {
+      if (horizontalMotorDiff < MAX_HORIZONTAL_SPEED) {
         ra += horizontalCoordinateSpeed;
       }
       long verticalMotorDiff = abs(verticalMotor->getCurrentPosition() - newVerticalPos);
-      if (verticalMotorDiff < MAX_VERTICAL_SPEED / 2) {
+      if (verticalMotorDiff < MAX_VERTICAL_SPEED) {
         dec += verticalCoordinateSpeed;
       }
     }
@@ -591,22 +590,10 @@ void moveMotors() {
     currentMotorAzm = azm;
 
     if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
-      horizontalSpeed = readHorizontalPots();
-      verticalSpeed = readVerticalPots();
-      horizontalMotorSpeed = map(horizontalSpeed, -120, +120, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
-      verticalMotorSpeed = map(verticalSpeed, -120, +120, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
-    
-      // Crawl speed
-      if (horizontalSpeed == -1) {
-        horizontalMotorSpeed = -1.0; 
-      } else if(horizontalSpeed == 1) {
-        horizontalMotorSpeed = 1.0;
-      }
-      if (verticalSpeed == -1) {
-        verticalMotorSpeed = -1.0; 
-      } else if(verticalSpeed == 1) {
-        verticalMotorSpeed = 1.0;
-      }
+      horizontalSpeed = readHorizontalControl();
+      verticalSpeed = readVerticalControl();
+      horizontalMotorSpeed = map(horizontalSpeed, -100, +100, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
+      verticalMotorSpeed = map(verticalSpeed, -100, +100, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
     } else {
       horizontalSpeed = 0;
       verticalSpeed = 0;

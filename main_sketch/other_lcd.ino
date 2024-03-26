@@ -23,14 +23,14 @@ void registerButton() {
   if (digitalRead(ACTION_INPUT_BUTTON)) {
     newAction = SELECT;
   }
-  if (digitalRead(COARSE_JOYSTICK_BUTTON) == 0) {
-    newAction = SELECT;
+  if (digitalRead(LEFT_JOYSTICK_BUTTON) == 0) {
+    newAction = FLIP_LEFT;
   }
   if (digitalRead(ENCODER_INPUT_BUTTON) == 0) {
     newAction = SELECT;
   }
-  if (digitalRead(FINE_JOYSTICK_BUTTON) == 0) {
-    newAction = SELECT;
+  if (digitalRead(RIGHT_JOYSTICK_BUTTON) == 0) {
+    newAction = FLIP_RIGHT;
   }
   
   if (selectActionIndex == 0) {
@@ -56,17 +56,36 @@ void registerKnobNavigation() {
   long newKnobValue = knob.read() / 2;
   long knobDifference = newKnobValue - lastKnobValue;
   lastKnobValue = newKnobValue;
-  selectedChoice += knobDifference;
-  if (selectedChoice > maxChoice) {
-    selectedChoice = 0;
-  } else if (selectedChoice < 0) {
-    selectedChoice = maxChoice;
+  
+  if (activeMode == MODE_MOVE_COORDINATES || activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
+    if(knobDifference != 0) {
+      leftJoystickSpeed += knobDifference;
+      if (leftJoystickSpeed < 0) {
+        leftJoystickSpeed = 0;
+      } else if (leftJoystickSpeed > MAX_LEFT_JOYSTICK_SPEED) {
+        leftJoystickSpeed = MAX_LEFT_JOYSTICK_SPEED;
+      }
+
+      rightJoystickSpeed += knobDifference;
+      if (rightJoystickSpeed < 0) {
+        rightJoystickSpeed = 0;
+      } else if (rightJoystickSpeed > MAX_RIGHT_JOYSTICK_SPEED) {
+        rightJoystickSpeed = MAX_RIGHT_JOYSTICK_SPEED;
+      }
+    }
+  } else {
+    selectedChoice += knobDifference;
+    if (selectedChoice > maxChoice) {
+      selectedChoice = 0;
+    } else if (selectedChoice < 0) {
+      selectedChoice = maxChoice;
+    }
   }
 }
 
 void registerJoystickNavigation() {
-  newHorizontalValue = translatePotValueToSpeed(potHorizontalJoystickCoarse, -1);
-  newVerticalValue = translatePotValueToSpeed(potVerticalJoystickCoarse, 1);
+  newHorizontalValue = translatePotValueToSpeed(potHorizontalJoystickLeft, -1);
+  newVerticalValue = translatePotValueToSpeed(potVerticalJoystickRight, 1);
   
   if (newHorizontalValue < -60) {
     lastJoystickNavigationValue = -2; 
@@ -236,52 +255,35 @@ void drawMovingCoordinates() {
   maxChoice = 0;
   renderMenuOptions("                ","                ");
 
+  printLcdNumber(0, 0, leftJoystickSpeed, 0);
+  printLcdNumber(2, 0, rightJoystickSpeed, 0);
   printLcdFloatingPointNumber(5, 0, horizontalCoordinateSpeed, 0, 2);
-  printLcdFloatingPointNumber(11, 0, verticalCoordinateSpeed, 0, 2);
+  printLcdFloatingPointNumber(10, 0, verticalCoordinateSpeed, 0, 2);
   printLcdFloatingPointNumber(0, 1, dec, 5, 3);
   printLcdFloatingPointNumber(8, 1, ra, 5, 3);
 }
 
 void drawMovingMotor() {
   maxChoice = 0;
-  renderMenuOptions(" < H:    V:     ","                ");
+  renderMenuOptions("                ","                ");
 
+  printLcdNumber(0, 0, leftJoystickSpeed, 0);
+  printLcdNumber(2, 0, rightJoystickSpeed, 0);
   printLcdNumber(5, 0, horizontalSpeed, 0);
-  printLcdNumber(11, 0, verticalSpeed, 0);
+  printLcdNumber(10, 0, verticalSpeed, 0);
   printLcdNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
   printLcdNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
 }
 
-// void drawCalibrateMenu() {
-//   // [0] MAIN#[2]#CALB
-//   // [3] MOVE#########
-//   // 0123456789012345
-//   maxChoice = 4;
-//   renderMenuOptions(" SIRIUS  CAN.   ", " A. CEN  ACRUX  ");
-//   printLcdNumber(15, 1, calibratingStarIndex, 0);
-// }
-
-// void drawCalibratePickedStar() {
-//   maxChoice = 0;
-//   lcd.setCursor(0, 0); 
-//   lcd.print("                ");
-//   lcd.setCursor(0, 1); 
-//   lcd.print("                "); 
-//   
-//   printLcdAt(0, 0, "Find");
-//   printLcdAt(5, 0, calibratingTarget->name);
-//   lcd.print(":");
-//   printLcdFloatingPointNumber(0, 1, calibratingTarget->ra, 7, 4);
-//   printLcdFloatingPointNumber(8, 1, calibratingTarget->dec, 7, 4);
-// }
-// 
 void drawCalibrateMoving() {
   maxChoice = 0;
-  renderMenuOptions(" < H:    V:     ","                ");
-  printLcdNumber(0, 0, calibratingStarIndex, 1);
+  renderMenuOptions("                ","                ");
+  // printLcdNumber(0, 0, calibratingStarIndex, 0);
 
+  printLcdNumber(0, 0, leftJoystickSpeed, 0);
+  printLcdNumber(2, 0, rightJoystickSpeed, 0);
   printLcdNumber(5, 0, horizontalSpeed, 0);
-  printLcdNumber(11, 0, verticalSpeed, 0);
+  printLcdNumber(10, 0, verticalSpeed, 0);
   printLcdNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
   printLcdNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
 } 
@@ -518,7 +520,21 @@ void buttonPressed(int buttonNumber) {
     case SELECT:
       buttonSelect();
       break;
+    case FLIP_LEFT:
+      flipLeft();
+      break;
+    case FLIP_RIGHT:
+      flipRight();
+      break;
   }
+}
+
+void flipLeft() {
+  leftJoystickDirection *= -1; 
+}
+
+void flipRight() {
+  rightJoystickDirection *= -1; 
 }
 
 void buttonRight() {
@@ -546,6 +562,9 @@ void buttonLeft() {
   }
 }
 
+/*
+ Returns a value between -100 and +100. 
+*/
 int translatePotValueToSpeed(int value, int multiplyFactor) {
   int testValue; 
   if (value < 512) {
@@ -562,6 +581,6 @@ int translatePotValueToSpeed(int value, int multiplyFactor) {
   if (testValue < 30) {
     return 0; 
   } else {
-    return multiplyFactor * multiply * ((testValue -30) / (480 / 100)); // 100 stops 
+    return withinBounds(multiplyFactor * multiply * ((testValue -30) / (480 / 100)), -100, +100); // 100 stops 
   }
 }

@@ -53,7 +53,7 @@ void refreshOled() {
         oledDisplay.drawPixel(pixelLocation, altLineLocation, WHITE);
       }
     }
- }
+  }
   //oledDisplay.drawLine(raLineLocation, 16, azimuthLineLocation, SCREEN_HEIGHT, WHITE);
 
   //int decLineLocation = mapDouble(dec, -90, 90, 16, SCREEN_HEIGHT);
