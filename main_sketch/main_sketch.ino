@@ -19,6 +19,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
+#include <Ephemeris.h>
 
 #define MAX_VERTICAL_SPEED 15000
 #define MAX_HORIZONTAL_SPEED 500
@@ -155,6 +156,7 @@ typedef struct {
   String name;
   double ra;
   double dec;
+  int special;
 } target;
 
 typedef struct {
@@ -180,19 +182,25 @@ double hourMinArcSecToDoubleRa(float hour, float minute, float second) {
   return mapDouble(value, 0, 24.0, 0, 360);
 }
 
-target sirius = {"Sirius", hourMinArcSecToDouble(6, 46, 13), hourMinArcSecToDouble(-16, 45, 7.3)};
-target canopus = {"Canopus", hourMinArcSecToDouble(6, 24, 29.6), hourMinArcSecToDouble(-52, 42, 45.3)};
-target alphaCentauri = {"Alpha Centauri", hourMinArcSecToDouble(14, 41, 16.7), hourMinArcSecToDouble(-60, 55, 59.1)};
-target mimosa = {"Mimosa", hourMinArcSecToDouble(12, 47, 44), hourMinArcSecToDouble(-59, 41, 19)};
-target acrux = {"Acrux", hourMinArcSecToDouble(12, 26, 35.89), hourMinArcSecToDouble(-63, 5, 56.7343)};
-target rigel = {"Rigel", hourMinArcSecToDouble(5, 14, 32.27210), hourMinArcSecToDouble(-8, 12, 5.8981)};
-target hadar = {"Hadar", hourMinArcSecToDouble(14, 3, 49.40535), hourMinArcSecToDouble(-60, 22, 22.9266)};
-target altair = {"Altair", hourMinArcSecToDouble(19, 50, 46.99855), hourMinArcSecToDouble(8, 52, 5.9563)};
-target polaris = {"Polaris", hourMinArcSecToDouble(2, 31, 49.09), hourMinArcSecToDouble(89, 15, 50.8)};
-target sigmaOctantis = {"Sigma Octantis", hourMinArcSecToDouble(21, 8, 46.86357), hourMinArcSecToDouble(-88, 57, 23.3983)};
+target sirius = {"Sirius", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 46, 13), Ephemeris::hoursMinutesSecondsToFloatingHours(-16, -45, -7.3), -1};
+target canopus = {"Canopus", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 24, 29.6), Ephemeris::hoursMinutesSecondsToFloatingHours(-52, -42, -45.3), -1};
+target alphaCentauri = {"Alpha Centauri", Ephemeris::hoursMinutesSecondsToFloatingHours(14, 41, 16.7), Ephemeris::hoursMinutesSecondsToFloatingHours(-60, -55, -59.1), -1};
+target mimosa = {"Mimosa", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 47, 44), Ephemeris::hoursMinutesSecondsToFloatingHours(-59, -41, -19), -1};
+target acrux = {"Acrux", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 26, 35.89), Ephemeris::hoursMinutesSecondsToFloatingHours(-63, -5, -56.7343), -1};
+target rigel = {"Rigel", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 14, 32.27210), Ephemeris::hoursMinutesSecondsToFloatingHours(-8, -12, -5.8981), -1};
+target hadar = {"Hadar", Ephemeris::hoursMinutesSecondsToFloatingHours(14, 3, 49.40535), Ephemeris::hoursMinutesSecondsToFloatingHours(-60, -22, -22.9266), -1};
+target altair = {"Altair", Ephemeris::hoursMinutesSecondsToFloatingHours(19, 50, 46.99855), Ephemeris::hoursMinutesSecondsToFloatingHours(8, -52, -5.9563), -1};
+target polaris = {"Polaris", Ephemeris::hoursMinutesSecondsToFloatingHours(2, 31, 49.09), Ephemeris::hoursMinutesSecondsToFloatingHours(89, -15, -50.8), -1};
+target sigmaOctantis = {"Sigma Octantis", Ephemeris::hoursMinutesSecondsToFloatingHours(21, 8, 46.86357), Ephemeris::hoursMinutesSecondsToFloatingHours(-88, -57, -23.3983), -1};
+target specialMoon = { "Moon", 0, 0, EarthsMoon};
+target specialSaturn = { "Saturn", 0, 0, Saturn};
+target specialJupiter = { "Jupiter", 0, 0, Jupiter};
+target specialMars = { "Mars", 0, 0, Mars};
+target specialVenus = { "Venus", 0, 0, Venus};
+target specialSun = { "Sun", 0, 0, Sun};
 // target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
 
-target targets[] = { sirius, canopus, alphaCentauri, mimosa, acrux, rigel, hadar, altair, polaris, sigmaOctantis };
+target targets[] = { sirius, canopus, alphaCentauri, mimosa, acrux, rigel, hadar, altair, polaris, sigmaOctantis, specialMoon, specialSaturn, specialJupiter, specialMars, specialVenus, specialSun };
 target* calibratingTarget;
 
 int calibratingStarIndex = 0;
@@ -204,13 +212,17 @@ int calibrated = 0;
 
 // region Hardcoded GPS lat/ lon
 // 
-float gpsLatitude = -22.6599734;
-float gpsLongitude = -46.9420532;
+float gpsLatitude = -22.660029;
+float gpsLongitude = -46.939291;
+
 //
 // endregion
 
 // region Where we are pointing at, where we are
 //
+EquatorialCoordinates equatorialCoordinates;
+HorizontalCoordinates horizontalCoordinates;
+
 double ra = 10.0;
 double dec = -20.0;
 double julianDate;
@@ -273,6 +285,10 @@ double cosA;
 double a;
 double sinHa;
 
+int special = -1;
+
+SolarSystemObject solarSystemObject;
+
 char serialBuffer[128];
 int serialBufferPointer = 0;
 
@@ -284,6 +300,9 @@ void setup() {
   lcd.print("    ...TELESCOPE"); 
   
   Serial.begin(115200);
+
+  Ephemeris::setLocationOnEarth(-22.6599734F, -46.9420532F);
+  Ephemeris::setAltitude(614);
 
   // Wire.begin();
   rtcInitialized = rtc.begin();
@@ -324,6 +343,8 @@ void setup() {
   pinMode(VERTICAL_LED, OUTPUT);
 
   analogWrite(8, 240);
+
+  //SolarSystemObject solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime((SolarSystemObjectIndex)num, day, month, year, hour, minute, second);
 }
 
 void loop() {
@@ -477,12 +498,34 @@ void calculateEverything() {
   //
   calculateTime();
   
+  if (special != -1) {
+    solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime(special, 
+      currentDay, currentMonth, currentYear,
+      currentHour, currentMinute, currentSecond);
+      
+    ra = solarSystemObject.equaCoordinates.ra;
+    dec = solarSystemObject.equaCoordinates.dec;
+  }
+  
   //
   // Standard loop cals
-  julianDate = julianDateCalc();
-  gstTime = utcToGstCalc();
-  lst = gstToLstCalc();
-  azimuthAltitudeCalculation();
+  equatorialCoordinates.ra = ra;
+  equatorialCoordinates.dec = dec;
+  
+  horizontalCoordinates = Ephemeris::equatorialToHorizontalCoordinatesAtDateAndTime(
+    equatorialCoordinates,
+    currentDay, currentMonth, currentYear,
+    currentHour, currentMinute, currentSecond);
+                                                                                                      
+  azm = horizontalCoordinates.azi;
+  alt = horizontalCoordinates.alt;                      
+  
+  // SolarSystemObjectIndex;                                                                                
+  
+//   julianDate = julianDateCalc();
+//   gstTime = utcToGstCalc();
+//   lst = gstToLstCalc();
+//   azimuthAltitudeCalculation();
 }
  
 void storeCalibrateCoordinates() {

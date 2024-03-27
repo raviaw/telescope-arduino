@@ -156,6 +156,7 @@ void buttonSelect() {
     target* wantedStar = &targets[selectedChoice];
     ra = wantedStar->ra;
     dec = wantedStar->dec;
+    special = wantedStar->special;
     prepareToMoveWithCalibration();
     calculateEverything();
     activeMode = MODE_MENU;
