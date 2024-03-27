@@ -22,7 +22,7 @@
 #include <Ephemeris.h>
 
 #define MAX_VERTICAL_SPEED 15000
-#define MAX_HORIZONTAL_SPEED 500
+#define MAX_HORIZONTAL_SPEED 1000
 
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
