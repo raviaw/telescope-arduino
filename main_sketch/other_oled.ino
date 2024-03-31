@@ -62,10 +62,17 @@ void refreshOled() {
   oledDisplay.setTextSize(1);             // Normal 1:1 pixel scale
   oledDisplay.setTextColor(WHITE);        // Draw white text
   oledDisplay.setCursor(0,0);             // Start at top-left corner
-  oledDisplay.print("DEC:");
-  oledDisplay.print(dec, 2);
-  oledDisplay.print(",RA:");
-  oledDisplay.print(ra, 2);
+  if (special != -1) {
+    oledDisplay.print("dec:");
+    oledDisplay.print(dec, 2);
+    oledDisplay.print(",ra:");
+    oledDisplay.print(ra, 2);
+  } else {
+    oledDisplay.print("DEC:");
+    oledDisplay.print(dec, 2);
+    oledDisplay.print(",RA:");
+    oledDisplay.print(ra, 2);
+  }
 
   oledDisplay.setCursor(0,8);             // Start at top-left corner
   oledDisplay.print("AT:");

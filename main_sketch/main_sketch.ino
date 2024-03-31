@@ -22,7 +22,9 @@
 #include <Ephemeris.h>
 
 #define MAX_VERTICAL_SPEED 15000
-#define MAX_HORIZONTAL_SPEED 1000
+#define MAX_VERTICAL_ACCELERATION 1000
+#define MAX_HORIZONTAL_SPEED 1500
+#define MAX_HORIZONTAL_ACCELERATION 100
 
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -162,11 +164,14 @@ typedef struct {
 typedef struct {
   double ra;
   double dec;
-  double lst;
-  double alt;
-  double azm;
   long horizontalPosition;
   long verticalPosition;
+  int currentYear;
+  int currentMonth;
+  int currentDay;
+  int currentHour;
+  int currentMinute;
+  int currentSecond;
 } calibrationPoint;
 
 double hourMinArcSecToDouble(float hour, float minute, float second) {
@@ -185,12 +190,19 @@ double hourMinArcSecToDoubleRa(float hour, float minute, float second) {
 target sirius = {"Sirius", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 46, 13), Ephemeris::hoursMinutesSecondsToFloatingHours(-16, -45, -7.3), -1};
 target canopus = {"Canopus", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 24, 29.6), Ephemeris::hoursMinutesSecondsToFloatingHours(-52, -42, -45.3), -1};
 target alphaCentauri = {"Alpha Centauri", Ephemeris::hoursMinutesSecondsToFloatingHours(14, 41, 16.7), Ephemeris::hoursMinutesSecondsToFloatingHours(-60, -55, -59.1), -1};
-target mimosa = {"Mimosa", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 47, 44), Ephemeris::hoursMinutesSecondsToFloatingHours(-59, -41, -19), -1};
+target becrux = {"Becrux", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 47, 44), Ephemeris::hoursMinutesSecondsToFloatingHours(-59, -41, -19), -1};
 target acrux = {"Acrux", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 26, 35.89), Ephemeris::hoursMinutesSecondsToFloatingHours(-63, -5, -56.7343), -1};
 target rigel = {"Rigel", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 14, 32.27210), Ephemeris::hoursMinutesSecondsToFloatingHours(-8, -12, -5.8981), -1};
 target hadar = {"Hadar", Ephemeris::hoursMinutesSecondsToFloatingHours(14, 3, 49.40535), Ephemeris::hoursMinutesSecondsToFloatingHours(-60, -22, -22.9266), -1};
-target altair = {"Altair", Ephemeris::hoursMinutesSecondsToFloatingHours(19, 50, 46.99855), Ephemeris::hoursMinutesSecondsToFloatingHours(8, -52, -5.9563), -1};
-target polaris = {"Polaris", Ephemeris::hoursMinutesSecondsToFloatingHours(2, 31, 49.09), Ephemeris::hoursMinutesSecondsToFloatingHours(89, -15, -50.8), -1};
+target betelgeuse = {"Betelgeuse", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 56, 28.5), Ephemeris::hoursMinutesSecondsToFloatingHours(7, 24, 38), -1};
+target procyon = {"Procyon", Ephemeris::hoursMinutesSecondsToFloatingHours(7, 40, 34.2), Ephemeris::hoursMinutesSecondsToFloatingHours(5, 9, 42.4), -1};
+target pollux = {"Pollux", Ephemeris::hoursMinutesSecondsToFloatingHours(7, 46, 47.9), Ephemeris::hoursMinutesSecondsToFloatingHours(27, 58, 6.7), -1};
+target spica = {"Spica", Ephemeris::hoursMinutesSecondsToFloatingHours(13, 26, 29.2), Ephemeris::hoursMinutesSecondsToFloatingHours(-11, -17, -22.4), -1};
+target capella = {"Capella", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 18, 27.8), Ephemeris::hoursMinutesSecondsToFloatingHours(46, 1, 27.4), -1};
+target achernar = {"Achernar", Ephemeris::hoursMinutesSecondsToFloatingHours(1, 38, 35.2), Ephemeris::hoursMinutesSecondsToFloatingHours(-57, -6, -57.3), -1};
+target antares = {"Antares", Ephemeris::hoursMinutesSecondsToFloatingHours(16, 30, 54.1), Ephemeris::hoursMinutesSecondsToFloatingHours(-26, -29, -9.3), -1};
+// target altair = {"Altair", Ephemeris::hoursMinutesSecondsToFloatingHours(19, 50, 46.99855), Ephemeris::hoursMinutesSecondsToFloatingHours(8, 52, 5.9563), -1};
+// target polaris = {"Polaris", Ephemeris::hoursMinutesSecondsToFloatingHours(2, 31, 49.09), Ephemeris::hoursMinutesSecondsToFloatingHours(89, 15, 50.8), -1};
 target sigmaOctantis = {"Sigma Octantis", Ephemeris::hoursMinutesSecondsToFloatingHours(21, 8, 46.86357), Ephemeris::hoursMinutesSecondsToFloatingHours(-88, -57, -23.3983), -1};
 target specialMoon = { "Moon", 0, 0, EarthsMoon};
 target specialSaturn = { "Saturn", 0, 0, Saturn};
@@ -200,7 +212,8 @@ target specialVenus = { "Venus", 0, 0, Venus};
 target specialSun = { "Sun", 0, 0, Sun};
 // target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
 
-target targets[] = { sirius, canopus, alphaCentauri, mimosa, acrux, rigel, hadar, altair, polaris, sigmaOctantis, specialMoon, specialSaturn, specialJupiter, specialMars, specialVenus, specialSun };
+target targets[] = { sirius, canopus, alphaCentauri, becrux, acrux, rigel, hadar, betelgeuse, procyon, pollux, capella, achernar, antares,
+  sigmaOctantis, specialMoon, specialSaturn, specialJupiter, specialMars, specialVenus, specialSun };
 target* calibratingTarget;
 
 int calibratingStarIndex = 0;
@@ -321,13 +334,13 @@ void setup() {
   verticalMotor = engine.stepperConnectToPin(VERTICAL_STEPPER_STEP_PIN);
   if (verticalMotor) {
     verticalMotor->setDirectionPin(VERTICAL_STEPPER_DIR_PIN);
-    verticalMotor->setAcceleration(1500);
+    verticalMotor->setAcceleration(MAX_VERTICAL_ACCELERATION);
     verticalMotor->setAutoEnable(true);
   }
   horizontalMotor = engine.stepperConnectToPin(HORIZONTAL_STEPPER_STEP_PIN);
   if (horizontalMotor) {
     horizontalMotor->setDirectionPin(HORIZONTAL_STEPPER_DIR_PIN);
-    horizontalMotor->setAcceleration(100);
+    horizontalMotor->setAcceleration(MAX_HORIZONTAL_ACCELERATION);
     horizontalMotor->setAutoEnable(true);
   }
 
@@ -538,9 +551,12 @@ void storeCalibrateCoordinates() {
   
   usePoint->ra = calibratingTarget->ra;
   usePoint->dec = calibratingTarget->dec;
-  usePoint->lst = lst;
-  usePoint->alt = alt;
-  usePoint->azm = azm;
+  usePoint->currentYear = currentYear;
+  usePoint->currentMonth = currentMonth;
+  usePoint->currentDay = currentDay;
+  usePoint->currentHour = currentHour;
+  usePoint->currentMinute = currentMinute;
+  usePoint->currentSecond = currentSecond;
   usePoint->horizontalPosition = horizontalMotor->getCurrentPosition(); 
   usePoint->verticalPosition = verticalMotor->getCurrentPosition(); 
 }
@@ -552,9 +568,9 @@ void prepareStarCoordinates() {
 }
 
 void prepareToMoveWithCalibration() {
-    horizontalMotor->setAcceleration(100);
+    horizontalMotor->setAcceleration(MAX_HORIZONTAL_ACCELERATION);
     horizontalMotor->setAutoEnable(true);
-    verticalMotor->setAcceleration(1500);
+    verticalMotor->setAcceleration(MAX_VERTICAL_ACCELERATION);
     verticalMotor->setAutoEnable(true);
     horizontalMotor->setSpeedInHz(MAX_HORIZONTAL_SPEED);
     verticalMotor->setSpeedInHz(MAX_VERTICAL_SPEED);
@@ -566,12 +582,30 @@ void storeCalibrationData() {
   calibrated = 1;
   ledIncrement = 1;
 
-  alt1 = calibrationPoint0.alt;
-  alt2 = calibrationPoint1.alt;
+  equatorialCoordinates.ra = calibrationPoint0.ra;
+  equatorialCoordinates.dec = calibrationPoint0.dec;
+  
+  horizontalCoordinates = Ephemeris::equatorialToHorizontalCoordinatesAtDateAndTime(
+    equatorialCoordinates,
+    calibrationPoint0.currentDay, calibrationPoint0.currentMonth, calibrationPoint0.currentYear,
+    calibrationPoint0.currentHour, calibrationPoint0.currentMinute, calibrationPoint0.currentSecond);
+                                                                                                      
+  azm1 = horizontalCoordinates.azi;
+  alt1 = horizontalCoordinates.alt;                      
+
+  equatorialCoordinates.ra = calibrationPoint1.ra;
+  equatorialCoordinates.dec = calibrationPoint1.dec;
+  
+  horizontalCoordinates = Ephemeris::equatorialToHorizontalCoordinatesAtDateAndTime(
+    equatorialCoordinates,
+    calibrationPoint1.currentDay, calibrationPoint1.currentMonth, calibrationPoint1.currentYear,
+    calibrationPoint1.currentHour, calibrationPoint1.currentMinute, calibrationPoint1.currentSecond);
+                                                                                                      
+  azm2 = horizontalCoordinates.azi;
+  alt2 = horizontalCoordinates.alt;                      
+
   altMotor1 = calibrationPoint0.verticalPosition;
   altMotor2 = calibrationPoint1.verticalPosition;
-  azm1 = calibrationPoint0.azm;
-  azm2 = calibrationPoint1.azm;
   azmMotor1 = calibrationPoint0.horizontalPosition;
   azmMotor2 = calibrationPoint1.horizontalPosition;
 

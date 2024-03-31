@@ -126,8 +126,13 @@ void buttonSelect() {
         activeMode = MODE_AZ_ALT;
         ledIncrement = 10;
         break;
-      case 1: 
-        activeMode = MODE_MOVE_MENU;
+      case 1:
+        if(calibrated) {
+          activeMode = MODE_MOVE_COORDINATES;
+          special = -1;
+        } else {
+          activeMode = MODE_MOVE_MOTOR;
+        } 
         ledIncrement = 7;
         break;
       case 2: 
@@ -140,16 +145,6 @@ void buttonSelect() {
         activeMode = MODE_FIND;
         ledIncrement = 2;
         prepareToRenderStars();
-        break;
-    }
-  } else if( activeMode == MODE_MOVE_MENU) {
-    switch(selectedChoice) {
-      case 0: 
-        activeMode = MODE_MOVE_COORDINATES;
-        break;
-      case 1: 
-        activeMode = MODE_MOVE_MOTOR;
-        calibrated = 0;
         break;
     }
   } else if( activeMode == MODE_FIND) {
