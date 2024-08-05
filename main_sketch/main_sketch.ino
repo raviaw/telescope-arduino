@@ -327,11 +327,10 @@ SolarSystemObject solarSystemObject;
 
 char serialBuffer[128];
 int serialBufferPointer = 0;
+byte encoderBuffer[128];
+int encoderBufferPointer = 0;
 
-int lastClock = -1;
 long encoderPosition = 0;
-long clockCounter = 0;
-int missedClocks = 0;
 
 void setup() {
   lcd.begin(16, 2);
@@ -374,6 +373,9 @@ void setup() {
 
   // Bluetooth  
   Serial1.begin(9600);
+
+  // Encoder #1
+  Serial2.begin(57600);
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);
@@ -434,37 +436,91 @@ void loop() {
   ///////////////////////////////////////////////////////////////////////////
   
   if (monitorEncoder1Timer > 40) {
-    int clock0 = digitalRead(37) == HIGH;
-    int clock1 = digitalRead(39) == HIGH;
-    int clockNumber = (clock0 << 0) + (clock1 << 1);
-    if (clockNumber != lastClock) {
-      clockCounter++;
-      if (!(clockNumber == lastClock +1 || clockNumber == 0 && lastClock == 3)) {
-        Serial.print("MISSED CLOCK");
-        Serial.print(", last clock: ");
-        Serial.print(lastClock);
-        Serial.print(", clock: ");
-        Serial.print(clockNumber);
-        Serial.print(", bits: ");
-        Serial.print(clock1);
-        Serial.print(clock0);
-        Serial.println();
-        missedClocks++;
+    while(Serial2.available())
+    { 
+      int nextChar = Serial2.read();
+      if (nextChar != -1) { 
+        // Serial.print("Available encoder: ");
+        // Serial.println(nextChar);
+        if ((nextChar & 0x10) == 0x10) {
+          if (encoderBufferPointer >= 7) {
+            // encoderBufferPointer++; // To do the correct math
+            long n8 = nextChar;
+            long n7 = encoderBuffer[encoderBufferPointer - 1];
+            long n6 = encoderBuffer[encoderBufferPointer - 2];
+            long n5 = encoderBuffer[encoderBufferPointer - 3];
+            long n4 = encoderBuffer[encoderBufferPointer - 4];
+            long n3 = encoderBuffer[encoderBufferPointer - 5];
+            long n2 = encoderBuffer[encoderBufferPointer - 6];
+            long n1 = encoderBuffer[encoderBufferPointer - 7];
+            long sum = 
+              (((n1 & 0x0F) << 28) & 0xF0000000L) + 
+              (((n2 & 0x0F) << 24) & 0x0F000000L) + 
+              (((n3 & 0x0F) << 20) & 0x00F00000L) + 
+              (((n4 & 0x0F) << 16) & 0x000F0000L) + 
+              (((n5 & 0x0F) << 12) & 0x0000F000L) + 
+              (((n6 & 0x0F) << 8) & 0x00000F00L) + 
+              (((n7 & 0x0F) << 4) & 0x000000F0L) + 
+              ((n8 & 0x0F) & 0x0000000FL);
+            int c1 = (n1 & 0x80) == 0x80;
+            int c2 = (n2 & 0x40) == 0x40;
+            int c3 = (n3 & 0x40) == 0x40;
+            int c4 = (n4 & 0x40) == 0x40;
+            int c5 = (n5 & 0x40) == 0x40;
+            int c6 = (n6 & 0x40) == 0x40;
+            int c7 = (n7 & 0x20) == 0x20;
+            int c8 = (n8 & 0x10) == 0x10;
+
+            // Ensures noise is filtered out
+            if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
+              encoderPosition = sum;
+            }
+            // Serial.print("Encoder bytesc: ");
+            // Serial.print(n1);
+            // Serial.print(".");
+            // Serial.print(c1);
+            // Serial.print(", ");
+            // Serial.print(n2);
+            // Serial.print(".");
+            // Serial.print(c2);
+            // Serial.print(", ");
+            // Serial.print(n3);
+            // Serial.print(".");
+            // Serial.print(c3);
+            // Serial.print(", ");
+            // Serial.print(n4);
+            // Serial.print(".");
+            // Serial.print(c4);
+            // Serial.print(", ");
+            // Serial.print(n5);
+            // Serial.print(".");
+            // Serial.print(c5);
+            // Serial.print(", ");
+            // Serial.print(n6);
+            // Serial.print(".");
+            // Serial.print(c6);
+            // Serial.print(", ");
+            // Serial.print(n7);
+            // Serial.print(".");
+            // Serial.print(c7);
+            // Serial.print(", ");
+            // Serial.print(n8);
+            // Serial.print(".");
+            // Serial.print(c8);
+            // Serial.print(", ");
+            // Serial.print(sum);
+            // Serial.print(", ");
+            // Serial.print(encoderPosition);
+            // Serial.println();
+          }
+          encoderBufferPointer = 0;
+        } else if(encoderBufferPointer < sizeof(encoderBuffer) -1) {
+          encoderBuffer[encoderBufferPointer] = nextChar;
+          encoderBufferPointer++;
+        } else {
+          encoderBufferPointer = 0;
+        }
       }
-      lastClock = clockNumber;
-      int n0 = digitalRead(41) == HIGH;
-      int n1 = digitalRead(43) == HIGH;
-      int n2 = digitalRead(45) == HIGH;
-      int n3 = digitalRead(47) == HIGH;
-      int n4 = digitalRead(49) == HIGH;
-      int n5 = digitalRead(51) == HIGH;
-      int n6 = digitalRead(53) == HIGH;
-      int delta = n0 + n1 << 1 + n2 << 2 + n3 << 3 + n4 << 4 + n5 << 5 + n6 << 6;
-      int sign = digitalRead(55) == HIGH;
-      if (sign) {
-        delta *= -1;
-      }
-      encoderPosition += delta;
     }
     monitorEncoder1Timer = 0;
   }

@@ -7,14 +7,10 @@
 void reportStatus() {
   Serial.print("T: [");
   Serial.print(loopsPerSec);
-  Serial.print("], ");
+  Serial.print("]");
 
-  Serial.print("missed clocks: ");
-  Serial.print(missedClocks);
   Serial.print(", encoderPosition: ");
   Serial.print(encoderPosition);
-  Serial.print(", clockCounter: ");
-  Serial.print(clockCounter);
   Serial.print(", alt: ");
   Serial.print(alt);
   Serial.print(", alt1: ");
