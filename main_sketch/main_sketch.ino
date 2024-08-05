@@ -9,6 +9,28 @@
     Star Track - Arduino Powered Star Pointer and Tracker https://www.instructables.com/id/Star-Track-Arduino-Powered-Star-Pointer-and-Tracke/
     Arduino Star-Finder for Telescopes                    https://www.instructables.com/id/Arduino-Star-Finder-for-Telescopes/
 */
+/*
+00 
+01
+10
+11
+
+00000000 - 256
+Each Arduino Uno has 14 digital pins - I need 2 of these for the encoder
+I will use the other 12 digital pins for the communication - it will 2 bits for the "clock", and one bit for the "delta" - 0 to 3 for clock, 0 to 1023 for the delta
+You read the encoder input and store it in a number
+You keep an internal clock that you progress every 0.5 seconds on the source arduino
+Each time you progress the clock, you calculate the delta between the current value from the encoder and last value, and that is your delta. You put your delta on the 10 digital pins.
+When reading it, you read the clock - every time the clock changes, you apply the delta to your local number and you have the same value as the source arduino, provided you can read the data frequently enough
+I was thinking how to make them communicate without losing data and this is one way - it should work
+Clock and delta
+12 PINS
+00
+01
+10
+11
+00000000000 0 to 1024
+*/
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
 #include "FastAccelStepper.h"
@@ -57,10 +79,10 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define REFERENCE_INPUT_BUTTON 7
 #define ACTION_INPUT_BUTTON 52
 #define ENCODER_INPUT_BUTTON 48
-#define BACK_INPUT_BUTTON 46
-#define LEFT_JOYSTICK_BUTTON 32
+#define ENCODER_INPUT_BUTTON 25
+#define RIGHT_JOYSTICK_BUTTON 21
+#define LEFT_JOYSTICK_BUTTON 23
 #define ENABLE_POT_BUTTON 34
-#define RIGHT_JOYSTICK_BUTTON 30
 
 #define POT 1
 #define REFERENCE_INPUT_BUTTON 7
@@ -82,6 +104,7 @@ elapsedMillis oledRefreshTime;
 elapsedMillis androidRefreshTime;
 elapsedMillis horizontalBlinkTimer;
 elapsedMillis verticalBlinkTimer;
+elapsedMillis monitorEncoder1Timer;
 
 int horizontalBlinkOnTime = 10;
 int horizontalBlinkOffTime = 1000;
@@ -305,6 +328,11 @@ SolarSystemObject solarSystemObject;
 char serialBuffer[128];
 int serialBufferPointer = 0;
 
+int lastClock = -1;
+long encoderPosition = 0;
+long clockCounter = 0;
+int missedClocks = 0;
+
 void setup() {
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
@@ -354,6 +382,16 @@ void setup() {
   pinMode(ENABLE_POT_BUTTON, INPUT_PULLUP);
   pinMode(HORIZONTAL_LED, OUTPUT);
   pinMode(VERTICAL_LED, OUTPUT);
+  pinMode(37, INPUT);
+  pinMode(39, INPUT);
+  pinMode(41, INPUT);
+  pinMode(43, INPUT);
+  pinMode(45, INPUT);
+  pinMode(47, INPUT);
+  pinMode(49, INPUT);
+  pinMode(51, INPUT);
+  pinMode(53, INPUT);
+  pinMode(55, INPUT);
 
   analogWrite(8, 240);
 
@@ -394,6 +432,42 @@ void loop() {
   }
   //
   ///////////////////////////////////////////////////////////////////////////
+  
+  if (monitorEncoder1Timer > 40) {
+    int clock0 = digitalRead(37) == HIGH;
+    int clock1 = digitalRead(39) == HIGH;
+    int clockNumber = (clock0 << 0) + (clock1 << 1);
+    if (clockNumber != lastClock) {
+      clockCounter++;
+      if (!(clockNumber == lastClock +1 || clockNumber == 0 && lastClock == 3)) {
+        Serial.print("MISSED CLOCK");
+        Serial.print(", last clock: ");
+        Serial.print(lastClock);
+        Serial.print(", clock: ");
+        Serial.print(clockNumber);
+        Serial.print(", bits: ");
+        Serial.print(clock1);
+        Serial.print(clock0);
+        Serial.println();
+        missedClocks++;
+      }
+      lastClock = clockNumber;
+      int n0 = digitalRead(41) == HIGH;
+      int n1 = digitalRead(43) == HIGH;
+      int n2 = digitalRead(45) == HIGH;
+      int n3 = digitalRead(47) == HIGH;
+      int n4 = digitalRead(49) == HIGH;
+      int n5 = digitalRead(51) == HIGH;
+      int n6 = digitalRead(53) == HIGH;
+      int delta = n0 + n1 << 1 + n2 << 2 + n3 << 3 + n4 << 4 + n5 << 5 + n6 << 6;
+      int sign = digitalRead(55) == HIGH;
+      if (sign) {
+        delta *= -1;
+      }
+      encoderPosition += delta;
+    }
+    monitorEncoder1Timer = 0;
+  }
   
   if(Serial1.available())
   { 
