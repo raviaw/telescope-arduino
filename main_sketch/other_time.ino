@@ -5,7 +5,11 @@
 //           1         2
 //
 void parseReceivedTimeString(char* timeString) {
+  Serial.print("Processing time input");
+  Serial.println(timeString);
   if(strlen(timeString) < 23) {
+    Serial.print("Invalid time input (too short)");
+    Serial.println(timeString);
     return;
   }
   char year[5];
@@ -40,6 +44,7 @@ void parseReceivedTimeString(char* timeString) {
   currentMs = atoi(ms);
   currentSecOfDay = (currentHour * 3600L) + (currentMinute * 60L) + currentSecond;
   
+  rtc.adjust(DateTime(currentYear, currentMonth, currentDay, currentHour, currentMinute, currentSecond));
   // This method may be used to set the RTC clock based on a value received over bluetooth...
 }
 

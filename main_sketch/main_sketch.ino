@@ -32,6 +32,7 @@ Clock and delta
 00000000000 0 to 1024
 */
 #include "ArduinoJson.h"
+#include "StreamUtils.h"
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
 #include "FastAccelStepper.h"
@@ -329,6 +330,9 @@ double a;
 double sinHa;
 
 int special = -1;
+
+JsonDocument bluetoothDoc;
+DeserializationError lastDeserializationStatus;
 
 SolarSystemObject solarSystemObject;
 
@@ -647,26 +651,27 @@ void loop() {
     monitorEncoderTimer = 0;
   }
   
-  if(Serial1.available())
-  { 
-    char nextChar = Serial1.read();
-    if (nextChar != -1) { 
-      if (nextChar == '\n') {
-        if (serialBufferPointer > 0) {
-          serialBuffer[serialBufferPointer] = 0;
-          Serial.print("Received serial coordinates: ");
-          Serial.write(serialBuffer);
-          Serial.println();
+   if(Serial1.available()) {
+     bluetoothSerialAvailable();
+   }
+  //   char nextChar = Serial1.read();
+  //   if (nextChar != -1) { 
+  //     if (nextChar == '\n') {
+  //       if (serialBufferPointer > 0) {
+  //         serialBuffer[serialBufferPointer] = 0;
+  //         Serial.print("Received serial coordinates: ");
+  //         Serial.write(serialBuffer);
+  //         Serial.println();
         
-          processInput(serialBuffer);
-        }
-        serialBufferPointer = 0;
-      } else if(serialBufferPointer < sizeof(serialBuffer) -1) {
-        serialBuffer[serialBufferPointer] = nextChar;
-        serialBufferPointer++;
-      }    
-    }
-  }
+  //         processInput(serialBuffer);
+  //       }
+  //       serialBufferPointer = 0;
+  //     } else if(serialBufferPointer < sizeof(serialBuffer) -1) {
+  //       serialBuffer[serialBufferPointer] = nextChar;
+  //       serialBufferPointer++;
+  //     }    
+  //   }
+  // }
     
   loopsPerSec++;
 

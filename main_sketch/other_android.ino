@@ -1,7 +1,6 @@
-
-
 void reportBluetooth() {
   JsonDocument doc;
+  doc["activeMode"] = activeMode;
   doc["ra"] = ra;
   doc["dec"] = dec;
   doc["alt"] = alt;
@@ -24,6 +23,30 @@ void reportBluetooth() {
   // Serial1.print(", M ALT POS: ");
   // Serial1.print(verticalMotor->getCurrentPosition());
   // Serial1.println();
+}
+
+// JsonDocument bluetoothDoc;
+// DeserializationError lastDeserializationStatus;
+void bluetoothSerialAvailable() {
+  ReadLoggingStream loggingStream(Serial1, Serial);
+  lastDeserializationStatus = deserializeJson(bluetoothDoc, loggingStream);
+  const char* command = bluetoothDoc["command"];
+  if (strcmp("time", command) == 0) {
+    processTimeCommand();
+  } else if (strcmp("calibrate", command) == 0) {
+    processCalibrationCommand();
+  } else {
+    Serial.println("Input from serial is unknown");
+  }
+}
+
+void processTimeCommand() {
+  const char* time = bluetoothDoc["time"];
+  parseReceivedTimeString(time);
+}
+
+void processCalibrationCommand() {
+  startCalibration();
 }
 
 void processInput(char* serialBuffer) {

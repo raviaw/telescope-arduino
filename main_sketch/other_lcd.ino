@@ -115,6 +115,13 @@ void performButtonAction(int newAction) {
   lastSelectButtonAction = newAction;
 }
 
+void startCalibration() {
+  activeMode = MODE_CALIBRATING;
+  calibratingStarIndex = 0;
+  ledIncrement = 3;
+  prepareToRenderStars();
+}
+
 void buttonSelect() {
   if (activeMode == MODE_MENU) {
     switch(selectedChoice) {
@@ -136,10 +143,7 @@ void buttonSelect() {
         ledIncrement = 7;
         break;
       case 2: 
-        activeMode = MODE_CALIBRATING;
-        calibratingStarIndex = 0;
-        ledIncrement = 3;
-        prepareToRenderStars();
+        startCalibration();
         break;
       case 3: 
         activeMode = MODE_FIND;
