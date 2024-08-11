@@ -31,6 +31,7 @@ Clock and delta
 11
 00000000000 0 to 1024
 */
+#include "ArduinoJson.h"
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
 #include "FastAccelStepper.h"
@@ -53,6 +54,10 @@ Clock and delta
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 #define SCREEN_TOP_AREA_PIXELS 16
 #define SCREEN_BOTTOM_AREA_PIXELS 48
+
+const int MPU1 = 0x69; // Endereço do sensor 1
+
+int16_t AcX1,AcY1,AcZ1,Tmp1,GyX1,GyY1,GyZ1;
 
 // region Engine declarations
 //  
@@ -104,7 +109,9 @@ elapsedMillis oledRefreshTime;
 elapsedMillis androidRefreshTime;
 elapsedMillis horizontalBlinkTimer;
 elapsedMillis verticalBlinkTimer;
-elapsedMillis monitorEncoder1Timer;
+
+elapsedMillis monitorEncoderTimer;
+elapsedMillis accelerometerTimer;
 
 int horizontalBlinkOnTime = 10;
 int horizontalBlinkOffTime = 1000;
@@ -327,12 +334,21 @@ SolarSystemObject solarSystemObject;
 
 char serialBuffer[128];
 int serialBufferPointer = 0;
-byte encoderBuffer[128];
-int encoderBufferPointer = 0;
+byte encoder1Buffer[128];
+int encoder1BufferPointer = 0;
+byte encoder2Buffer[128];
+int encoder2BufferPointer = 0;
 
-long encoderPosition = 0;
+long encoder1Position = 0;
+long encoder2Position = 0;
 
 void setup() {
+  Wire.begin(); // Inicia a comunicação I2C
+  Wire.beginTransmission(MPU1); //Começa a transmissao de dados para o sensor 1
+  Wire.write(0x6B); // registrador PWR_MGMT_1
+  Wire.write(0); // Manda 0 e "acorda" o sensor 1
+  Wire.endTransmission(true);
+  
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
   lcd.print("INITIALIZING...."); 
@@ -376,6 +392,8 @@ void setup() {
 
   // Encoder #1
   Serial2.begin(57600);
+  // Encoder #2
+  Serial3.begin(57600);
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);
@@ -434,8 +452,25 @@ void loop() {
   }
   //
   ///////////////////////////////////////////////////////////////////////////
+
+  if (accelerometerTimer > 100) {
+    Wire.beginTransmission(MPU1); //Começa a transmissao de dados do sensor 1
+    Wire.write(0x3B); // Registrador dos dados medidos (ACCEL_XOUT_H)
+    Wire.endTransmission(false);
+    Wire.requestFrom(MPU1,14,true); // Faz um "pedido" para ler 14 registradores, que serão os registrados com os dados medidos
+    AcX1 = Wire.read()<<8|Wire.read();
+    AcY1 = Wire.read()<<8|Wire.read();
+    AcZ1 = Wire.read()<<8|Wire.read();
+    Tmp1 = Wire.read()<<8|Wire.read();
+    GyX1 = Wire.read()<<8|Wire.read();
+    GyY1 = Wire.read()<<8|Wire.read();
+    GyZ1 = Wire.read()<<8|Wire.read();
+    Wire.endTransmission(true); // Se der erro tente tirar esta linha
+    accelerometerTimer = 0;
+  }
+
   
-  if (monitorEncoder1Timer > 40) {
+  if (monitorEncoderTimer > 40) {
     while(Serial2.available())
     { 
       int nextChar = Serial2.read();
@@ -443,16 +478,24 @@ void loop() {
         // Serial.print("Available encoder: ");
         // Serial.println(nextChar);
         if ((nextChar & 0x10) == 0x10) {
-          if (encoderBufferPointer >= 7) {
+          if (encoder1BufferPointer >= 7) {
             // encoderBufferPointer++; // To do the correct math
             long n8 = nextChar;
-            long n7 = encoderBuffer[encoderBufferPointer - 1];
-            long n6 = encoderBuffer[encoderBufferPointer - 2];
-            long n5 = encoderBuffer[encoderBufferPointer - 3];
-            long n4 = encoderBuffer[encoderBufferPointer - 4];
-            long n3 = encoderBuffer[encoderBufferPointer - 5];
-            long n2 = encoderBuffer[encoderBufferPointer - 6];
-            long n1 = encoderBuffer[encoderBufferPointer - 7];
+            long n7 = encoder1Buffer[encoder1BufferPointer - 1];
+            long n6 = encoder1Buffer[encoder1BufferPointer - 2];
+            long n5 = encoder1Buffer[encoder1BufferPointer - 3];
+            long n4 = encoder1Buffer[encoder1BufferPointer - 4];
+            long n3 = encoder1Buffer[encoder1BufferPointer - 5];
+            long n2 = encoder1Buffer[encoder1BufferPointer - 6];
+            long n1 = encoder1Buffer[encoder1BufferPointer - 7];
+            int c1 = (n1 & 0x80) == 0x80;
+            int c2 = (n2 & 0x40) == 0x40;
+            int c3 = (n3 & 0x40) == 0x40;
+            int c4 = (n4 & 0x40) == 0x40;
+            int c5 = (n5 & 0x40) == 0x40;
+            int c6 = (n6 & 0x40) == 0x40;
+            int c7 = (n7 & 0x20) == 0x20;
+            int c8 = (n8 & 0x10) == 0x10;
             long sum = 
               (((n1 & 0x0F) << 28) & 0xF0000000L) + 
               (((n2 & 0x0F) << 24) & 0x0F000000L) + 
@@ -462,18 +505,10 @@ void loop() {
               (((n6 & 0x0F) << 8) & 0x00000F00L) + 
               (((n7 & 0x0F) << 4) & 0x000000F0L) + 
               ((n8 & 0x0F) & 0x0000000FL);
-            int c1 = (n1 & 0x80) == 0x80;
-            int c2 = (n2 & 0x40) == 0x40;
-            int c3 = (n3 & 0x40) == 0x40;
-            int c4 = (n4 & 0x40) == 0x40;
-            int c5 = (n5 & 0x40) == 0x40;
-            int c6 = (n6 & 0x40) == 0x40;
-            int c7 = (n7 & 0x20) == 0x20;
-            int c8 = (n8 & 0x10) == 0x10;
 
             // Ensures noise is filtered out
             if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              encoderPosition = sum;
+              encoder1Position = sum;
             }
             // Serial.print("Encoder bytesc: ");
             // Serial.print(n1);
@@ -513,16 +548,103 @@ void loop() {
             // Serial.print(encoderPosition);
             // Serial.println();
           }
-          encoderBufferPointer = 0;
-        } else if(encoderBufferPointer < sizeof(encoderBuffer) -1) {
-          encoderBuffer[encoderBufferPointer] = nextChar;
-          encoderBufferPointer++;
+          encoder1BufferPointer = 0;
+        } else if(encoder1BufferPointer < sizeof(encoder1Buffer) -1) {
+          encoder1Buffer[encoder1BufferPointer] = nextChar;
+          encoder1BufferPointer++;
         } else {
-          encoderBufferPointer = 0;
+          encoder1BufferPointer = 0;
         }
       }
     }
-    monitorEncoder1Timer = 0;
+
+    while(Serial3.available())
+    { 
+      int nextChar = Serial3.read();
+      if (nextChar != -1) { 
+        // Serial.print("Available encoder: ");
+        // Serial.println(nextChar);
+        if ((nextChar & 0x10) == 0x10) {
+          if (encoder2BufferPointer >= 7) {
+            // encoderBufferPointer++; // To do the correct math
+            long n8 = nextChar;
+            long n7 = encoder2Buffer[encoder2BufferPointer - 1];
+            long n6 = encoder2Buffer[encoder2BufferPointer - 2];
+            long n5 = encoder2Buffer[encoder2BufferPointer - 3];
+            long n4 = encoder2Buffer[encoder2BufferPointer - 4];
+            long n3 = encoder2Buffer[encoder2BufferPointer - 5];
+            long n2 = encoder2Buffer[encoder2BufferPointer - 6];
+            long n1 = encoder2Buffer[encoder2BufferPointer - 7];
+            int c1 = (n1 & 0x80) == 0x80;
+            int c2 = (n2 & 0x40) == 0x40;
+            int c3 = (n3 & 0x40) == 0x40;
+            int c4 = (n4 & 0x40) == 0x40;
+            int c5 = (n5 & 0x40) == 0x40;
+            int c6 = (n6 & 0x40) == 0x40;
+            int c7 = (n7 & 0x20) == 0x20;
+            int c8 = (n8 & 0x10) == 0x10;
+            long sum = 
+              (((n1 & 0x0F) << 28) & 0xF0000000L) + 
+              (((n2 & 0x0F) << 24) & 0x0F000000L) + 
+              (((n3 & 0x0F) << 20) & 0x00F00000L) + 
+              (((n4 & 0x0F) << 16) & 0x000F0000L) + 
+              (((n5 & 0x0F) << 12) & 0x0000F000L) + 
+              (((n6 & 0x0F) << 8) & 0x00000F00L) + 
+              (((n7 & 0x0F) << 4) & 0x000000F0L) + 
+              ((n8 & 0x0F) & 0x0000000FL);
+
+            // Ensures noise is filtered out
+            if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
+              encoder2Position = sum;
+            }
+            // Serial.print("Encoder bytesc: ");
+            // Serial.print(n1);
+            // Serial.print(".");
+            // Serial.print(c1);
+            // Serial.print(", ");
+            // Serial.print(n2);
+            // Serial.print(".");
+            // Serial.print(c2);
+            // Serial.print(", ");
+            // Serial.print(n3);
+            // Serial.print(".");
+            // Serial.print(c3);
+            // Serial.print(", ");
+            // Serial.print(n4);
+            // Serial.print(".");
+            // Serial.print(c4);
+            // Serial.print(", ");
+            // Serial.print(n5);
+            // Serial.print(".");
+            // Serial.print(c5);
+            // Serial.print(", ");
+            // Serial.print(n6);
+            // Serial.print(".");
+            // Serial.print(c6);
+            // Serial.print(", ");
+            // Serial.print(n7);
+            // Serial.print(".");
+            // Serial.print(c7);
+            // Serial.print(", ");
+            // Serial.print(n8);
+            // Serial.print(".");
+            // Serial.print(c8);
+            // Serial.print(", ");
+            // Serial.print(sum);
+            // Serial.print(", ");
+            // Serial.print(encoderPosition);
+            // Serial.println();
+          }
+          encoder2BufferPointer = 0;
+        } else if(encoder2BufferPointer < sizeof(encoder2Buffer) -1) {
+          encoder2Buffer[encoder2BufferPointer] = nextChar;
+          encoder2BufferPointer++;
+        } else {
+          encoder2BufferPointer = 0;
+        }
+      }
+    }
+    monitorEncoderTimer = 0;
   }
   
   if(Serial1.available())

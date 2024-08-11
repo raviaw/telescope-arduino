@@ -9,8 +9,26 @@ void reportStatus() {
   Serial.print(loopsPerSec);
   Serial.print("]");
 
-  Serial.print(", encoderPosition: ");
-  Serial.print(encoderPosition);
+  Serial.print(", encoder1Position: ");
+  Serial.print(encoder1Position);
+  Serial.print(", encoder2Position: ");
+  Serial.print(encoder2Position);
+  Serial.print(", AcX1: ");
+  Serial.print(AcX1);
+  Serial.print(", AcY1: ");
+  Serial.print(AcY1);
+  Serial.print(", AcZ1: ");
+  Serial.print(AcZ1);
+  Serial.print(", Tmp1: ");
+  Serial.print(Tmp1);
+  Serial.print(", AcX1: ");
+  Serial.print(AcX1);
+  Serial.print(", GyX1: ");
+  Serial.print(GyX1);
+  Serial.print(", GyY1: ");
+  Serial.print(GyY1);
+  Serial.print(", GyZ1: ");
+  Serial.print(GyZ1);
   Serial.print(", alt: ");
   Serial.print(alt);
   Serial.print(", alt1: ");
@@ -215,7 +233,7 @@ void reportStatus() {
   
   float maxHorizontalPercentage = mapDouble(abs(horizontalMotor->getCurrentSpeedInUs()), 0, horizontalMotor->getMaxSpeedInUs(), 0, 100.0);
 
-  Serial.println();
+  // Serial.println();
   Serial.print("HORIZONTAL: ");
   Serial.print("newHorizontalPos: ");
   Serial.print(newHorizontalPos);
@@ -233,7 +251,7 @@ void reportStatus() {
 
   float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
 
-  Serial.println();
+  // Serial.println();
   Serial.print("VERTICAL: ");
   Serial.print("newVerticalPos: ");
   Serial.print(newVerticalPos);

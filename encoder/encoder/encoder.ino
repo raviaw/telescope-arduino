@@ -24,6 +24,16 @@ void loop() {
     long val7 = ((newValue & 0x000000F0) >> 4) | 0x20;
     long val8 = (newValue & 0x0000000F) | 0x10;
 
+    Serial.write((byte) val1);
+    Serial.write((byte) val2);
+    Serial.write((byte) val3);
+    Serial.write((byte) val4);
+    Serial.write((byte) val5);
+    Serial.write((byte) val6);
+    Serial.write((byte) val7);
+    Serial.write((byte) val8);
+    processTime = 0;
+
     // int encoderBuffer[] = { val1, val2, val3, val4, val5, val6, val7, val8 };
     // int encoderBufferPointer = 7;
     // long n8 = encoderBuffer[encoderBufferPointer];
@@ -88,14 +98,5 @@ void loop() {
     // Serial.print(", ");
     // Serial.print((long) val8);
     // Serial.println();
-    Serial.write((byte) val1);
-    Serial.write((byte) val2);
-    Serial.write((byte) val3);
-    Serial.write((byte) val4);
-    Serial.write((byte) val5);
-    Serial.write((byte) val6);
-    Serial.write((byte) val7);
-    Serial.write((byte) val8);
-    processTime = 0;
   }
 }
