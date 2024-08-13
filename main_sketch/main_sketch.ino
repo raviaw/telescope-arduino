@@ -331,6 +331,8 @@ double sinHa;
 
 int special = -1;
 
+int slaveMode = 0;
+
 JsonDocument bluetoothDoc;
 DeserializationError lastDeserializationStatus;
 
@@ -358,6 +360,7 @@ void setup() {
   lcd.print("INITIALIZING...."); 
   lcd.setCursor(0, 1);
   lcd.print("    ...TELESCOPE"); 
+  // lcd.noDisplay();
   
   Serial.begin(115200);
 

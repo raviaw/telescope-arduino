@@ -6,6 +6,7 @@ void reportBluetooth() {
   doc["alt"] = alt;
   doc["azm"] = azm;
   doc["calibrated"] = calibrated;
+  doc["slave"] = slaveMode;
   serializeJson(doc, Serial1);
   // Serial1.print("RA: ");
   // Serial1.print(ra, 3);
@@ -46,6 +47,7 @@ void processTimeCommand() {
 }
 
 void processCalibrationCommand() {
+  slaveMode();
   startCalibration();
 }
 
@@ -65,4 +67,8 @@ void processInput(char* serialBuffer) {
     ra = hourMinArcSecToDouble(raHour, raMinute, raSecond);
     dec = hourMinArcSecToDouble(decHour, decMinute, decSecond);
   }
+}
+
+void slaveMode() {
+  slaveMode = 1;
 }
