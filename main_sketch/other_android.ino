@@ -47,7 +47,7 @@ void processTimeCommand() {
 }
 
 void processCalibrationCommand() {
-  slaveMode();
+  setSlaveMode();
   startCalibration();
 }
 
@@ -69,6 +69,6 @@ void processInput(char* serialBuffer) {
   }
 }
 
-void slaveMode() {
+void setSlaveMode() {
   slaveMode = 1;
 }

@@ -66,7 +66,7 @@ LiquidCrystal lcd(11, 12, 4, 5, 9, 10);
 RTC_DS3231 rtc;
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *verticalMotor = NULL;
-FastAccelStepper *horizontalMotor = NULL;
+FastAccelStepper *horizontalMotor = NULL;           
 Encoder knob(2, 3);
 Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -173,9 +173,9 @@ int ledIncrement = 3;
 int leftJoystickDirection = -1;
 int rightJoystickDirection = -1;
 int MAX_LEFT_JOYSTICK_SPEED = 10;
-int leftJoystickSpeed = 0;
+int leftJoystickSpeed = 5;
 int MAX_RIGHT_JOYSTICK_SPEED = 10;
-int rightJoystickSpeed = 0;
+int rightJoystickSpeed = 5;
 
 long lastKnobValue = 0;
 
@@ -460,6 +460,9 @@ void loop() {
   //
   ///////////////////////////////////////////////////////////////////////////
 
+  ///////////////////////////////////////////////////////////////////////////
+  // Accelerometer
+  //
   if (accelerometerTimer > 100) {
     Wire.beginTransmission(MPU1); //Começa a transmissao de dados do sensor 1
     Wire.write(0x3B); // Registrador dos dados medidos (ACCEL_XOUT_H)
@@ -473,10 +476,10 @@ void loop() {
     GyY1 = Wire.read()<<8|Wire.read();
     GyZ1 = Wire.read()<<8|Wire.read();
     Wire.endTransmission(true); // Se der erro tente tirar esta linha
+
     accelerometerTimer = 0;
   }
 
-  
   if (monitorEncoderTimer > 40) {
     while(Serial2.available())
     { 
@@ -884,21 +887,27 @@ void moveMotorsTracking() {
 }
 
 int readHorizontalControl() {
-  int horizontal = translatePotValueToSpeed(potHorizontalJoystickLeft, leftJoystickDirection);
-  if (horizontal != 0) {
-    return horizontal / max(MAX_LEFT_JOYSTICK_SPEED - leftJoystickSpeed, 1); 
-  } else {
-    return translatePotValueToSpeed(potHorizontal, -1);
-  }
+  return translatePotValueToSpeed(potHorizontal, -1);
+
+//TODO JOYSTICK
+//   int horizontal = translatePotValueToSpeed(potHorizontalJoystickLeft, leftJoystickDirection);
+//   if (horizontal != 0) {
+//     return horizontal / max(MAX_LEFT_JOYSTICK_SPEED - leftJoystickSpeed, 1); 
+//   } else {
+//     return translatePotValueToSpeed(potHorizontal, -1);
+//   }
 }
 
 int readVerticalControl() {
-  int vertical = translatePotValueToSpeed(potVerticalJoystickRight, rightJoystickDirection);
-  if (vertical != 0) {
-    return vertical / max(MAX_RIGHT_JOYSTICK_SPEED - rightJoystickSpeed, 1); 
-  } else {
-    return translatePotValueToSpeed(potVertical, -1);
-  }
+  return translatePotValueToSpeed(potVertical, -1);
+
+//TODO JOYSTICK
+//   int vertical = translatePotValueToSpeed(potVerticalJoystickRight, rightJoystickDirection);
+//   if (vertical != 0) {
+//     return vertical / max(MAX_RIGHT_JOYSTICK_SPEED - rightJoystickSpeed, 1); 
+//   } else {
+//     return translatePotValueToSpeed(potVertical, -1);
+//   }
 }
 
 void moveMotors() {

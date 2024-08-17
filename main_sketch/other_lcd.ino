@@ -49,7 +49,7 @@ void registerButton() {
   }
   
   registerKnobNavigation();
-  registerJoystickNavigation();
+  // registerJoystickNavigation(); NOT WORKING CURRENTLY TODO JOYSTICK
 }
 
 void registerKnobNavigation() {
