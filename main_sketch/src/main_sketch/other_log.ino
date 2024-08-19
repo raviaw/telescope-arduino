@@ -86,6 +86,8 @@ void reportStatus() {
   Serial.print(potHorizontal);
   Serial.print(", Pot V: ");
   Serial.print(potVertical);
+  Serial.print(", speed pot: ");
+  Serial.print(analogRead(SPEED_POT));
   Serial.print(", H: ");
   Serial.print(potHorizontalJoystickLeft);
   Serial.print(", V: ");  

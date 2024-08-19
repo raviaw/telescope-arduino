@@ -34,8 +34,12 @@ void bluetoothSerialAvailable() {
   const char* command = bluetoothDoc["command"];
   if (strcmp("time", command) == 0) {
     processTimeCommand();
-  } else if (strcmp("calibrate", command) == 0) {
-    processCalibrationCommand();
+  } else if (strcmp("master", command) == 0) {
+    clearSlaveMode();
+  } else if (strcmp("slave", command) == 0) {
+    setSlaveMode();
+  } else if (strcmp("c-start", command) == 0) {
+    processCalibrateStartCommand();
   } else {
     Serial.println("Input from serial is unknown");
   }
@@ -46,9 +50,20 @@ void processTimeCommand() {
   parseReceivedTimeString(time);
 }
 
-void processCalibrationCommand() {
-  setSlaveMode();
+void processCalibrateStartCommand() {
+  int index = bluetoothDoc["index"];
+  int starIndex = bluetoothDoc["starIndex"];
   startCalibration();
+
+  calibratingStarIndex = index;
+
+  target* wantedStar = &targets[starIndex];
+  ra = wantedStar->ra;
+  dec = wantedStar->dec;
+  special = wantedStar->special;
+  prepareToMoveWithCalibration();
+  calculateEverything();
+  activeMode = MODE_MENU;
 }
 
 void processInput(char* serialBuffer) {
@@ -69,6 +84,14 @@ void processInput(char* serialBuffer) {
   }
 }
 
+void clearSlaveMode() {
+  slaveMode = 0;
+  digitalWrite(SLAVE_LED, LOW);
+  digitalWrite(MASTER_LED, HIGH);
+}
+
 void setSlaveMode() {
   slaveMode = 1;
+  digitalWrite(SLAVE_LED, HIGH);
+  digitalWrite(MASTER_LED, LOW);
 }

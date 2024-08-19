@@ -1,4 +1,8 @@
 void registerButton() {
+  if(slaveMode) {
+    return;
+  }
+  
   int newAction = -1;
 
   int currentButtonValue = analogRead(LCD_INPUT_BUTTON);
@@ -53,6 +57,10 @@ void registerButton() {
 }
 
 void registerKnobNavigation() {
+  if(slaveMode) {
+    return;
+  }
+
   long newKnobValue = knob.read() / 2;
   long knobDifference = newKnobValue - lastKnobValue;
   lastKnobValue = newKnobValue;
@@ -84,6 +92,10 @@ void registerKnobNavigation() {
 }
 
 void registerJoystickNavigation() {
+  if(slaveMode) {
+    return;
+  }
+
   newHorizontalValue = translatePotValueToSpeed(potHorizontalJoystickLeft, -1);
   newVerticalValue = translatePotValueToSpeed(potVerticalJoystickRight, 1);
   

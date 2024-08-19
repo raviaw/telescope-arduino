@@ -31,8 +31,8 @@ Clock and delta
 11
 00000000000 0 to 1024
 */
-#include "ArduinoJson.h"
-#include "StreamUtils.h"
+#include <ArduinoJson.h>
+#include <StreamUtils.h>
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
 #include "FastAccelStepper.h"
@@ -79,10 +79,14 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define HORIZONTAL_JOYSTICK_RIGHT 2
 #define VERTICAL_JOYSTICK_LEFT 0
 #define VERTICAL_JOYSTICK_RIGHT 6
-#define LCD_INPUT_BUTTON 1
-#define HORIZONTAL_POT 4
-#define VERTICAL_POT 5
+
+#define LCD_INPUT_BUTTON 0
+#define LCD_LIGHT_CONTROL 8
+#define SPEED_POT 1
+#define HORIZONTAL_POT 3
+#define VERTICAL_POT 2
 #define REFERENCE_INPUT_BUTTON 7
+
 #define ACTION_INPUT_BUTTON 52
 #define ENCODER_INPUT_BUTTON 48
 #define ENCODER_INPUT_BUTTON 25
@@ -91,10 +95,12 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define ENABLE_POT_BUTTON 34
 
 #define POT 1
-#define REFERENCE_INPUT_BUTTON 7
 
 #define HORIZONTAL_LED 26
 #define VERTICAL_LED 28
+
+#define MASTER_LED 31
+#define SLAVE_LED 33
 
 //
 // endregion
@@ -108,8 +114,6 @@ elapsedMillis moveMotorsTime;
 elapsedMillis logMotorsTime;
 elapsedMillis oledRefreshTime;
 elapsedMillis androidRefreshTime;
-elapsedMillis horizontalBlinkTimer;
-elapsedMillis verticalBlinkTimer;
 
 elapsedMillis monitorEncoderTimer;
 elapsedMillis accelerometerTimer;
@@ -409,18 +413,12 @@ void setup() {
   pinMode(ENABLE_POT_BUTTON, INPUT_PULLUP);
   pinMode(HORIZONTAL_LED, OUTPUT);
   pinMode(VERTICAL_LED, OUTPUT);
-  pinMode(37, INPUT);
-  pinMode(39, INPUT);
-  pinMode(41, INPUT);
-  pinMode(43, INPUT);
-  pinMode(45, INPUT);
-  pinMode(47, INPUT);
-  pinMode(49, INPUT);
-  pinMode(51, INPUT);
-  pinMode(53, INPUT);
-  pinMode(55, INPUT);
+  pinMode(MASTER_LED, OUTPUT);
+  pinMode(SLAVE_LED, OUTPUT);
+  pinMode(LCD_LIGHT_CONTROL, OUTPUT);
 
-  analogWrite(8, 240);
+  digitalWrite(MASTER_LED, HIGH);
+  digitalWrite(SLAVE_LED, LOW);
 
   //SolarSystemObject solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime((SolarSystemObjectIndex)num, day, month, year, hour, minute, second);
 }
@@ -684,15 +682,22 @@ void loop() {
   registerButton();
 
   if (calcTime > 25) {
-    if(digitalRead(ENABLE_POT_BUTTON) == 1) {
+    if (!slaveMode) {
       potHorizontal = analogRead(HORIZONTAL_POT);
       potVertical = analogRead(VERTICAL_POT);
+      potHorizontalJoystickLeft = analogRead(HORIZONTAL_JOYSTICK_LEFT);
+      potVerticalJoystickRight = analogRead(VERTICAL_JOYSTICK_RIGHT);
     } else {
       potHorizontal = 512;
       potVertical = 512;
     }
-    potHorizontalJoystickLeft = analogRead(HORIZONTAL_JOYSTICK_LEFT);
-    potVerticalJoystickRight = analogRead(VERTICAL_JOYSTICK_RIGHT);
+//         if(digitalRead(ENABLE_POT_BUTTON) == 1) {
+//           potHorizontal = analogRead(HORIZONTAL_POT);
+//           potVertical = analogRead(VERTICAL_POT);
+//         } else {
+//           potHorizontal = 512;
+//           potVertical = 512;
+//         }
 
     //
     calculateEverything();
@@ -702,7 +707,6 @@ void loop() {
   
   if (moveMotors > 100) {
     moveMotors();
-    determineLedIntervals();
 
     moveMotorsTime = 0;
   }
@@ -748,28 +752,8 @@ void loop() {
 
     logMotorsTime = 0;
   }
-  
-  if (horizontalBlinkState == 0 && horizontalBlinkTimer > horizontalBlinkOffTime) {
-    horizontalBlinkTimer = 0;
-    horizontalBlinkState = 1;
-    digitalWrite(HORIZONTAL_LED, HIGH);
-  } else if (horizontalBlinkState == 1 && horizontalBlinkTimer > horizontalBlinkOnTime) { 
-    horizontalBlinkTimer = 0;
-    horizontalBlinkState = 0;
-    digitalWrite(HORIZONTAL_LED, LOW);
-  }
-
-  if (verticalBlinkState == 0 && verticalBlinkTimer > verticalBlinkOffTime) {
-    verticalBlinkTimer = 0;
-    verticalBlinkState = 1;
-    digitalWrite(VERTICAL_LED, HIGH);
-  } else if (verticalBlinkState == 1 && verticalBlinkTimer > verticalBlinkOnTime) { 
-    verticalBlinkTimer = 0;
-    verticalBlinkState = 0;
-    digitalWrite(VERTICAL_LED, LOW);
-  }
 }
-
+  
 void calculateEverything() {
   //
   calculateTime();
@@ -982,13 +966,4 @@ void moveMotors() {
   }
 //   horizontalMotor->move(horizontalMotorSpeed * horizontalMultiplier);
 //   verticalMotor->move(verticalMotorSpeed * verticalMultiplier);
-}
-
-void determineLedIntervals() {
-  double azmDifference = abs(azm - currentMotorAzm);
-  double altDifference = abs(alt - currentMotorAlt);
-  horizontalBlinkOnTime = azmDifference * 100;  
-  horizontalBlinkOffTime = 1000 - horizontalBlinkOnTime; 
-  verticalBlinkOnTime = altDifference * 100;  
-  verticalBlinkOffTime = 1000 - verticalBlinkOnTime; 
 }

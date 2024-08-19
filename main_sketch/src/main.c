@@ -3,4 +3,4 @@
 //
 #include "./main_sketch/main_sketch.ino"
 #include "./main_sketch/other_android.ino"
-#include "./main_sketch/other_cals.ino"
+#include "./main_sketch/other_calcs.ino"
