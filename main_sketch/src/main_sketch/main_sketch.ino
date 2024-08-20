@@ -75,24 +75,25 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define HORIZONTAL_STEPPER_STEP_PIN 7
 #define HORIZONTAL_STEPPER_DIR_PIN 24
 
-#define HORIZONTAL_JOYSTICK_LEFT 3
-#define HORIZONTAL_JOYSTICK_RIGHT 2
-#define VERTICAL_JOYSTICK_LEFT 0
-#define VERTICAL_JOYSTICK_RIGHT 6
+#define HORIZONTAL_JOYSTICK_LEFT 4
+#define HORIZONTAL_JOYSTICK_RIGHT 5
+#define VERTICAL_JOYSTICK_LEFT 6
+#define VERTICAL_JOYSTICK_RIGHT 7
+
+#define ACTION_INPUT_BUTTON 52
+#define ENCODER_INPUT_BUTTON 48
+#define ENCODER_INPUT_BUTTON 25
+#define LEFT_JOYSTICK_BUTTON 23
+#define RIGHT_JOYSTICK_BUTTON 21
+#define ENABLE_POT_BUTTON 34
 
 #define LCD_INPUT_BUTTON 0
 #define LCD_LIGHT_CONTROL 8
 #define SPEED_POT 1
 #define HORIZONTAL_POT 3
 #define VERTICAL_POT 2
-#define REFERENCE_INPUT_BUTTON 7
+#define REFERENCE_INPUT_BUTTON 15
 
-#define ACTION_INPUT_BUTTON 52
-#define ENCODER_INPUT_BUTTON 48
-#define ENCODER_INPUT_BUTTON 25
-#define RIGHT_JOYSTICK_BUTTON 21
-#define LEFT_JOYSTICK_BUTTON 23
-#define ENABLE_POT_BUTTON 34
 
 #define POT 1
 
@@ -172,6 +173,8 @@ int potVertical = 0;
 // horizontal right and vertical left are ignored
 int potHorizontalJoystickLeft = 0;
 int potVerticalJoystickRight = 0;
+int androidHorizontalSpeed = 0;
+int androidVerticalSpeed = 0;
 int ledPower = 0;
 int ledIncrement = 3;
 int leftJoystickDirection = -1;
@@ -208,19 +211,6 @@ typedef struct {
   int currentMinute;
   int currentSecond;
 } calibrationPoint;
-
-double hourMinArcSecToDouble(float hour, float minute, float second) {
-  if (hour < 0) {
-    return hour - (minute / 60.0) - (second / 3600.0);
-  } else {
-    return hour + (minute / 60.0) + (second / 3600.0);
-  }
-}
-
-double hourMinArcSecToDoubleRa(float hour, float minute, float second) {
-  double value = hourMinArcSecToDouble(hour, minute, second);
-  return mapDouble(value, 0, 24.0, 0, 360);
-}
 
 target sirius = {"Sirius", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 46, 13), Ephemeris::hoursMinutesSecondsToFloatingHours(-16, -45, -7.3), -1};
 target canopus = {"Canopus", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 24, 29.6), Ephemeris::hoursMinutesSecondsToFloatingHours(-52, -42, -45.3), -1};
@@ -295,6 +285,7 @@ float verticalCoordinateSpeed = 0;
 
 int loopsPerSec = 0;
 int rtcInitialized = 0;
+
 //
 // endregion
 
@@ -420,6 +411,7 @@ void setup() {
   digitalWrite(MASTER_LED, HIGH);
   digitalWrite(SLAVE_LED, LOW);
 
+  digitalWrite(LCD_LIGHT_CONTROL, HIGH);
   //SolarSystemObject solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime((SolarSystemObjectIndex)num, day, month, year, hour, minute, second);
 }
 
@@ -719,7 +711,6 @@ void loop() {
   }
   if (lcdTime >= 250) {    // reports speed and position each second
     reportLcd();
-
     lcdTime = 0;
   }
 
@@ -871,7 +862,20 @@ void moveMotorsTracking() {
 }
 
 int readHorizontalControl() {
-  return translatePotValueToSpeed(potHorizontal, -1);
+  if (slaveMode) {
+    return androidHorizontalSpeed;
+  } else {
+    return translatePotValueToSpeed(potHorizontal, -1);
+  }
+}
+
+int readVerticalControl() {
+  if (slaveMode) {
+    return androidVerticalSpeed;
+  } else {
+    return translatePotValueToSpeed(potVertical, -1);
+  }
+}
 
 //TODO JOYSTICK
 //   int horizontal = translatePotValueToSpeed(potHorizontalJoystickLeft, leftJoystickDirection);
@@ -880,10 +884,6 @@ int readHorizontalControl() {
 //   } else {
 //     return translatePotValueToSpeed(potHorizontal, -1);
 //   }
-}
-
-int readVerticalControl() {
-  return translatePotValueToSpeed(potVertical, -1);
 
 //TODO JOYSTICK
 //   int vertical = translatePotValueToSpeed(potVerticalJoystickRight, rightJoystickDirection);
@@ -892,7 +892,6 @@ int readVerticalControl() {
 //   } else {
 //     return translatePotValueToSpeed(potVertical, -1);
 //   }
-}
 
 void moveMotors() {
   if (calibrated) {
