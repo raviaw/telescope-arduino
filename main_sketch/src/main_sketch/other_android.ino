@@ -11,6 +11,8 @@ void reportBluetooth() {
   doc["azm"] = azm;
   doc["calibrated"] = calibrated;
   doc["slave"] = slaveMode;
+  doc["hor-motor"] = horizontalMotor->getCurrentPosition();
+  doc["ver-motor"] = verticalMotor->getCurrentPosition();
   serializeJson(doc, Serial1);
 }
 
@@ -40,17 +42,18 @@ void bluetoothSerialAvailable() {
     processCalibrateStopCommand();
   } else if (strcmp("c-done", command) == 0) {
     processCalibrateDoneCommand();
+  } else if (strcmp("c-save", command) == 0) {
+    processCalibrateSaveCommand();
   } else if (strcmp("menu-main", command) == 0) {
     processMenuMainCommand();
+  } else if (strcmp("find-star", command) == 0) {
+    processFindStarCommand();
   } else {
     Serial.println("Input from serial is unknown");
   }
 }
 
 void processMenuMainCommand() {
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
-
   resetSpeeds();
   activeMode = MODE_MENU;
   clearSlaveMode();
@@ -62,10 +65,9 @@ void processTimeCommand() {
 }
 
 void processCalibrateStartCommand() {
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
-
+  resetSpeeds();
   setSlaveMode();
+  calibrated = 0; 
   int index = bluetoothDoc["index"];
   int starIndex = bluetoothDoc["starIndex"];
   startCalibration();
@@ -87,24 +89,24 @@ void processCalibrateStartCommand() {
 void processCalibrateMoveCommand() {
   androidHorizontalSpeed = bluetoothDoc["x"];
   androidVerticalSpeed = bluetoothDoc["y"];
+  int speed = bluetoothDoc["speed"];
+  leftJoystickSpeed = speed;
+  rightJoystickSpeed = speed;
 }
 
 void processCalibrateSaveCommand() {
   storeCalibrateCoordinates();
   activeMode = MODE_CALIBRATE_STAR_COMPLETE;
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
+  resetSpeeds();
 }
 
 void processCalibrateStopCommand() {
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
+  resetSpeeds();
   clearSlaveMode();
 }
 
 void processCalibrateDoneCommand() {
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
+  resetSpeeds();
   storeCalibrateCoordinates();
   storeCalibrationData();
   prepareToMoveWithCalibration();
@@ -112,17 +114,31 @@ void processCalibrateDoneCommand() {
 }
 
 void clearSlaveMode() {
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
+  resetSpeeds();
   slaveMode = 0;
   digitalWrite(SLAVE_LED, LOW);
   digitalWrite(MASTER_LED, HIGH);
 }
 
 void setSlaveMode() {
-  androidHorizontalSpeed = 0;
-  androidVerticalSpeed = 0;
+  resetSpeeds();
   slaveMode = 1;
   digitalWrite(SLAVE_LED, HIGH);
   digitalWrite(MASTER_LED, LOW);
+}
+
+void processFindStarCommand() {
+  resetSpeeds();
+  setSlaveMode();
+  int index = bluetoothDoc["index"];
+  int starIndex = bluetoothDoc["starIndex"];
+
+  target* wantedStar = &targets[starIndex];
+
+  ra = wantedStar->ra;
+  dec = wantedStar->dec;
+  special = wantedStar->special;
+  prepareToMoveWithCalibration();
+  calculateEverything();
+  activeMode = MODE_MENU;
 }

@@ -120,6 +120,10 @@ void registerJoystickNavigation() {
 }
 
 void performButtonAction(int newAction) {
+  if(slaveMode) {
+    return;
+  }
+
   if (newAction == -1 && lastSelectButtonAction != -1) {
     buttonPressed(lastSelectButtonAction);
     lastSelectButtonAction = -1;
@@ -428,7 +432,12 @@ void printLcdAt(int horizontalPosition, int verticalPosition, String text) {
 }
 
 void resetSpeeds() {
-  // Do nothing
+  androidHorizontalSpeed = 0;
+  androidVerticalSpeed = 0;
+  potHorizontal = 0;
+  potVertical = 0;
+  potHorizontalJoystickLeft = 0;
+  potVerticalJoystickRight = 0;
 }
 
 void prepareToRenderStars() {

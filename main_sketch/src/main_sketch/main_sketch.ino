@@ -81,11 +81,10 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define VERTICAL_JOYSTICK_RIGHT 7
 
 #define ACTION_INPUT_BUTTON 52
-#define ENCODER_INPUT_BUTTON 48
-#define ENCODER_INPUT_BUTTON 25
+#define ENCODER_INPUT_BUTTON 37
 #define LEFT_JOYSTICK_BUTTON 23
 #define RIGHT_JOYSTICK_BUTTON 21
-#define ENABLE_POT_BUTTON 34
+#define ENABLE_POT_BUTTON 35
 
 #define LCD_INPUT_BUTTON 0
 #define LCD_LIGHT_CONTROL 8
@@ -675,21 +674,24 @@ void loop() {
 
   if (calcTime > 25) {
     if (!slaveMode) {
-      potHorizontal = analogRead(HORIZONTAL_POT);
-      potVertical = analogRead(VERTICAL_POT);
+      if(digitalRead(ENABLE_POT_BUTTON) == 1) {
+        potHorizontal = analogRead(HORIZONTAL_POT);
+        potVertical = analogRead(VERTICAL_POT);
+      } else {
+        potHorizontal = 512;
+        potVertical = 512;
+      }
       potHorizontalJoystickLeft = analogRead(HORIZONTAL_JOYSTICK_LEFT);
       potVerticalJoystickRight = analogRead(VERTICAL_JOYSTICK_RIGHT);
     } else {
       potHorizontal = 512;
       potVertical = 512;
+      potHorizontalJoystickLeft = 512;
+      potVerticalJoystickRight = 512;
+      newHorizontalValue = 0;
+      newVerticalValue = 0;
+      lastJoystickNavigationValue = 0;
     }
-//         if(digitalRead(ENABLE_POT_BUTTON) == 1) {
-//           potHorizontal = analogRead(HORIZONTAL_POT);
-//           potVertical = analogRead(VERTICAL_POT);
-//         } else {
-//           potHorizontal = 512;
-//           potVertical = 512;
-//         }
 
     //
     calculateEverything();
@@ -737,12 +739,12 @@ void loop() {
     oledRefreshTime = 0;
   }
 
-  if (logMotorsTime > 100) {
-    float maxHorizontalPercentage = mapDouble(abs(horizontalMotor->getCurrentSpeedInUs()), 0, horizontalMotor->getMaxSpeedInUs(), 0, 100.0);
-    float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
-
-    logMotorsTime = 0;
-  }
+//   if (logMotorsTime > 100) {
+//     float maxHorizontalPercentage = mapDouble(abs(horizontalMotor->getCurrentSpeedInUs()), 0, horizontalMotor->getMaxSpeedInUs(), 0, 100.0);
+//     float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
+// 
+//     logMotorsTime = 0;
+//   }
 }
   
 void calculateEverything() {
@@ -863,7 +865,7 @@ void moveMotorsTracking() {
 
 int readHorizontalControl() {
   if (slaveMode) {
-    return androidHorizontalSpeed;
+    return withinBounds(androidHorizontalSpeed, -100, +100); // 100 stops;
   } else {
     return translatePotValueToSpeed(potHorizontal, -1);
   }
@@ -871,7 +873,7 @@ int readHorizontalControl() {
 
 int readVerticalControl() {
   if (slaveMode) {
-    return androidVerticalSpeed;
+    return withinBounds(androidVerticalSpeed, -100, +100); // 100 stops;
   } else {
     return translatePotValueToSpeed(potVertical, -1);
   }

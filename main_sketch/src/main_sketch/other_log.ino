@@ -5,6 +5,8 @@
 //
 
 void reportStatus() {
+  return;
+  
   Serial.print("T: [");
   Serial.print(loopsPerSec);
   Serial.print("]");
