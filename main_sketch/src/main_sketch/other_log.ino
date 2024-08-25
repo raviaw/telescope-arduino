@@ -11,10 +11,10 @@ void reportStatus() {
   Serial.print(loopsPerSec);
   Serial.print("]");
 
-  Serial.print(", encoder1Position: ");
-  Serial.print(encoder1Position);
-  Serial.print(", encoder2Position: ");
-  Serial.print(encoder2Position);
+  Serial.print(", horizontalEncoderPosition: ");
+  Serial.print(horizontalEncoderPosition);
+  Serial.print(", verticalEncoderPosition: ");
+  Serial.print(verticalEncoderPosition);
   Serial.print(", AcX1: ");
   Serial.print(AcX1);
   Serial.print(", AcY1: ");

@@ -47,8 +47,8 @@ Clock and delta
 
 #define MAX_VERTICAL_SPEED 15000
 #define MAX_VERTICAL_ACCELERATION 1000
-#define MAX_HORIZONTAL_SPEED 1500
-#define MAX_HORIZONTAL_ACCELERATION 100
+#define MAX_HORIZONTAL_SPEED 15000
+#define MAX_HORIZONTAL_ACCELERATION 1000
 
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -70,10 +70,10 @@ FastAccelStepper *horizontalMotor = NULL;
 Encoder knob(2, 3);
 Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-#define VERTICAL_STEPPER_STEP_PIN 6
-#define VERTICAL_STEPPER_DIR_PIN 22
-#define HORIZONTAL_STEPPER_STEP_PIN 7
-#define HORIZONTAL_STEPPER_DIR_PIN 24
+#define VERTICAL_STEPPER_STEP_PIN 7
+#define VERTICAL_STEPPER_DIR_PIN 24
+#define HORIZONTAL_STEPPER_STEP_PIN 6
+#define HORIZONTAL_STEPPER_DIR_PIN 22
 
 #define HORIZONTAL_JOYSTICK_LEFT 4
 #define HORIZONTAL_JOYSTICK_RIGHT 5
@@ -334,13 +334,13 @@ SolarSystemObject solarSystemObject;
 
 char serialBuffer[128];
 int serialBufferPointer = 0;
-byte encoder1Buffer[128];
-int encoder1BufferPointer = 0;
-byte encoder2Buffer[128];
-int encoder2BufferPointer = 0;
+byte horizontalEncoderBuffer[128];
+int horizontalEncoderBufferPointer = 0;
+byte verticalEncoderBuffer[128];
+int verticalEncoderBufferPointer = 0;
 
-long encoder1Position = 0;
-long encoder2Position = 0;
+long horizontalEncoderPosition = 0;
+long verticalEncoderPosition = 0;
 
 void setup() {
   Wire.begin(); // Inicia a comunicação I2C
@@ -391,9 +391,9 @@ void setup() {
   // Bluetooth  
   Serial1.begin(9600);
 
-  // Encoder #1
-  Serial2.begin(57600);
   // Encoder #2
+  Serial2.begin(57600);
+  // Encoder #1
   Serial3.begin(57600);
   
   pinMode(ACTION_INPUT_BUTTON, INPUT);
@@ -477,16 +477,16 @@ void loop() {
         // Serial.print("Available encoder: ");
         // Serial.println(nextChar);
         if ((nextChar & 0x10) == 0x10) {
-          if (encoder1BufferPointer >= 7) {
+          if (verticalEncoderBufferPointer >= 7) {
             // encoderBufferPointer++; // To do the correct math
             long n8 = nextChar;
-            long n7 = encoder1Buffer[encoder1BufferPointer - 1];
-            long n6 = encoder1Buffer[encoder1BufferPointer - 2];
-            long n5 = encoder1Buffer[encoder1BufferPointer - 3];
-            long n4 = encoder1Buffer[encoder1BufferPointer - 4];
-            long n3 = encoder1Buffer[encoder1BufferPointer - 5];
-            long n2 = encoder1Buffer[encoder1BufferPointer - 6];
-            long n1 = encoder1Buffer[encoder1BufferPointer - 7];
+            long n7 = verticalEncoderBuffer[verticalEncoderBufferPointer - 1];
+            long n6 = verticalEncoderBuffer[verticalEncoderBufferPointer - 2];
+            long n5 = verticalEncoderBuffer[verticalEncoderBufferPointer - 3];
+            long n4 = verticalEncoderBuffer[verticalEncoderBufferPointer - 4];
+            long n3 = verticalEncoderBuffer[verticalEncoderBufferPointer - 5];
+            long n2 = verticalEncoderBuffer[verticalEncoderBufferPointer - 6];
+            long n1 = verticalEncoderBuffer[verticalEncoderBufferPointer - 7];
             int c1 = (n1 & 0x80) == 0x80;
             int c2 = (n2 & 0x40) == 0x40;
             int c3 = (n3 & 0x40) == 0x40;
@@ -507,7 +507,7 @@ void loop() {
 
             // Ensures noise is filtered out
             if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              encoder1Position = sum;
+              verticalEncoderPosition = sum;
             }
             // Serial.print("Encoder bytesc: ");
             // Serial.print(n1);
@@ -547,15 +547,16 @@ void loop() {
             // Serial.print(encoderPosition);
             // Serial.println();
           }
-          encoder1BufferPointer = 0;
-        } else if(encoder1BufferPointer < sizeof(encoder1Buffer) -1) {
-          encoder1Buffer[encoder1BufferPointer] = nextChar;
-          encoder1BufferPointer++;
+          verticalEncoderBufferPointer = 0;
+        } else if(verticalEncoderBufferPointer < sizeof(verticalEncoderBuffer) -1) {
+          verticalEncoderBuffer[verticalEncoderBufferPointer] = nextChar;
+          verticalEncoderBufferPointer++;
         } else {
-          encoder1BufferPointer = 0;
+          verticalEncoderBufferPointer = 0;
         }
       }
     }
+    monitorEncoderTimer = 0;
 
     while(Serial3.available())
     { 
@@ -564,16 +565,16 @@ void loop() {
         // Serial.print("Available encoder: ");
         // Serial.println(nextChar);
         if ((nextChar & 0x10) == 0x10) {
-          if (encoder2BufferPointer >= 7) {
+          if (horizontalEncoderBufferPointer >= 7) {
             // encoderBufferPointer++; // To do the correct math
             long n8 = nextChar;
-            long n7 = encoder2Buffer[encoder2BufferPointer - 1];
-            long n6 = encoder2Buffer[encoder2BufferPointer - 2];
-            long n5 = encoder2Buffer[encoder2BufferPointer - 3];
-            long n4 = encoder2Buffer[encoder2BufferPointer - 4];
-            long n3 = encoder2Buffer[encoder2BufferPointer - 5];
-            long n2 = encoder2Buffer[encoder2BufferPointer - 6];
-            long n1 = encoder2Buffer[encoder2BufferPointer - 7];
+            long n7 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 1];
+            long n6 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 2];
+            long n5 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 3];
+            long n4 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 4];
+            long n3 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 5];
+            long n2 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 6];
+            long n1 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 7];
             int c1 = (n1 & 0x80) == 0x80;
             int c2 = (n2 & 0x40) == 0x40;
             int c3 = (n3 & 0x40) == 0x40;
@@ -594,7 +595,7 @@ void loop() {
 
             // Ensures noise is filtered out
             if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              encoder2Position = sum;
+              horizontalEncoderPosition = sum;
             }
             // Serial.print("Encoder bytesc: ");
             // Serial.print(n1);
@@ -634,18 +635,17 @@ void loop() {
             // Serial.print(encoderPosition);
             // Serial.println();
           }
-          encoder2BufferPointer = 0;
-        } else if(encoder2BufferPointer < sizeof(encoder2Buffer) -1) {
-          encoder2Buffer[encoder2BufferPointer] = nextChar;
-          encoder2BufferPointer++;
+          horizontalEncoderBufferPointer = 0;
+        } else if(horizontalEncoderBufferPointer < sizeof(horizontalEncoderBuffer) -1) {
+          horizontalEncoderBuffer[horizontalEncoderBufferPointer] = nextChar;
+          horizontalEncoderBufferPointer++;
         } else {
-          encoder2BufferPointer = 0;
+          horizontalEncoderBufferPointer = 0;
         }
       }
     }
-    monitorEncoderTimer = 0;
   }
-  
+ 
    if(Serial1.available()) {
      bluetoothSerialAvailable();
    }
