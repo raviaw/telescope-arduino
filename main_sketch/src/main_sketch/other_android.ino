@@ -11,6 +11,9 @@ void reportBluetooth() {
   doc["azm"] = azm;
   doc["calibrated"] = calibrated;
   doc["slave"] = slaveMode;
+  doc["acc-y"] = AccY;
+  doc["acc-z"] = AccZ;
+  doc["acc-x"] = AccX;
   doc["hor-motor"] = horizontalMotor->getCurrentPosition();
   doc["ver-motor"] = verticalMotor->getCurrentPosition();
   doc["hor-encoder"] = horizontalEncoderPosition;

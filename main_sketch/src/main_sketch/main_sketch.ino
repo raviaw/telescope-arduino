@@ -44,6 +44,7 @@ Clock and delta
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
 #include <Ephemeris.h>
+#include <EEPROM.h>
 
 #define MAX_VERTICAL_SPEED 15000
 #define MAX_VERTICAL_ACCELERATION 1000
@@ -58,7 +59,9 @@ Clock and delta
 
 const int MPU1 = 0x69; // Endereço do sensor 1
 
-int16_t AcX1,AcY1,AcZ1,Tmp1,GyX1,GyY1,GyZ1;
+float AccX,AccY,AccZ,Tmp1,GyroX,GyroY,GyroZ;
+float accAngleX;
+float accAngleY;
 
 // region Engine declarations
 //  
@@ -75,15 +78,13 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define HORIZONTAL_STEPPER_STEP_PIN 6
 #define HORIZONTAL_STEPPER_DIR_PIN 22
 
-#define HORIZONTAL_JOYSTICK_LEFT 4
-#define HORIZONTAL_JOYSTICK_RIGHT 5
-#define VERTICAL_JOYSTICK_LEFT 6
-#define VERTICAL_JOYSTICK_RIGHT 7
+#define HORIZONTAL_JOYSTICK_LEFT 8
+#define VERTICAL_JOYSTICK_RIGHT 10
 
 #define ACTION_INPUT_BUTTON 52
 #define ENCODER_INPUT_BUTTON 37
-#define LEFT_JOYSTICK_BUTTON 23
-#define RIGHT_JOYSTICK_BUTTON 21
+#define LEFT_JOYSTICK_BUTTON 39
+#define RIGHT_JOYSTICK_BUTTON 41
 #define ENABLE_POT_BUTTON 35
 
 #define LCD_INPUT_BUTTON 0
@@ -141,7 +142,7 @@ int verticalBlinkState = 0; // 0 OFF, 1 ON
 //
 // endregion
 
-// region Menu variables
+// region Menu variablesþ
 //
 #define RIGHT 1
 #define UP 2
@@ -457,13 +458,17 @@ void loop() {
     Wire.write(0x3B); // Registrador dos dados medidos (ACCEL_XOUT_H)
     Wire.endTransmission(false);
     Wire.requestFrom(MPU1,14,true); // Faz um "pedido" para ler 14 registradores, que serão os registrados com os dados medidos
-    AcX1 = Wire.read()<<8|Wire.read();
-    AcY1 = Wire.read()<<8|Wire.read();
-    AcZ1 = Wire.read()<<8|Wire.read();
-    Tmp1 = Wire.read()<<8|Wire.read();
-    GyX1 = Wire.read()<<8|Wire.read();
-    GyY1 = Wire.read()<<8|Wire.read();
-    GyZ1 = Wire.read()<<8|Wire.read();
+    AccX = (Wire.read()<<8|Wire.read()) / 16384.0;
+    AccY = (Wire.read()<<8|Wire.read()) / 16384.0;
+    AccZ = (Wire.read()<<8|Wire.read()) / 16384.0;
+    accAngleX = (atan(AccY / sqrt(pow(AccX, 2) + pow(AccZ, 2))) * 180 / PI) - 0.58; // AccErrorX ~(0.58) See the calculate_IMU_error()custom function for more details
+    accAngleY = (atan(-1 * AccX / sqrt(pow(AccY, 2) + pow(AccZ, 2))) * 180 / PI) + 1.58; // AccErrorY ~(-1.58)    Tmp1 = Wire.read()<<8|Wire.read();
+    GyroX = (Wire.read() << 8 | Wire.read()) / 131.0; // For a 250deg/s range we have to divide first the raw value by 131.0, according to the datasheet
+    GyroY = (Wire.read() << 8 | Wire.read()) / 131.0;
+    GyroZ = (Wire.read() << 8 | Wire.read()) / 131.0;
+    GyroX = GyroX + 0.56; // GyroErrorX ~(-0.56)
+    GyroY = GyroY - 2; // GyroErrorY ~(2)
+    GyroZ = GyroZ + 0.79; // GyroErrorZ ~ (-0.8)
     Wire.endTransmission(true); // Se der erro tente tirar esta linha
 
     accelerometerTimer = 0;
@@ -867,7 +872,12 @@ int readHorizontalControl() {
   if (slaveMode) {
     return withinBounds(androidHorizontalSpeed, -100, +100); // 100 stops;
   } else {
-    return translatePotValueToSpeed(potHorizontal, -1);
+    int horizontal = translatePotValueToSpeed(potHorizontalJoystickLeft, leftJoystickDirection);
+    if (horizontal != 0) {
+      return horizontal / max(MAX_LEFT_JOYSTICK_SPEED - leftJoystickSpeed, 1); 
+   } else {
+      return translatePotValueToSpeed(potHorizontal, -1);
+    }
   }
 }
 
@@ -875,25 +885,14 @@ int readVerticalControl() {
   if (slaveMode) {
     return withinBounds(androidVerticalSpeed, -100, +100); // 100 stops;
   } else {
-    return translatePotValueToSpeed(potVertical, -1);
+  int vertical = translatePotValueToSpeed(potVerticalJoystickRight, rightJoystickDirection);
+    if (vertical != 0) {
+      return vertical / max(MAX_RIGHT_JOYSTICK_SPEED - rightJoystickSpeed, 1); 
+    } else {
+      return translatePotValueToSpeed(potVertical, -1);
+    }
   }
 }
-
-//TODO JOYSTICK
-//   int horizontal = translatePotValueToSpeed(potHorizontalJoystickLeft, leftJoystickDirection);
-//   if (horizontal != 0) {
-//     return horizontal / max(MAX_LEFT_JOYSTICK_SPEED - leftJoystickSpeed, 1); 
-//   } else {
-//     return translatePotValueToSpeed(potHorizontal, -1);
-//   }
-
-//TODO JOYSTICK
-//   int vertical = translatePotValueToSpeed(potVerticalJoystickRight, rightJoystickDirection);
-//   if (vertical != 0) {
-//     return vertical / max(MAX_RIGHT_JOYSTICK_SPEED - rightJoystickSpeed, 1); 
-//   } else {
-//     return translatePotValueToSpeed(potVertical, -1);
-//   }
 
 void moveMotors() {
   if (calibrated) {
