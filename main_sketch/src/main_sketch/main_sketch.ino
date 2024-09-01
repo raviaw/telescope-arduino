@@ -139,6 +139,7 @@ int verticalBlinkState = 0; // 0 OFF, 1 ON
 #define MODE_CALIBRATE_MOVING 10
 #define MODE_CALIBRATE_STAR_COMPLETE 11
 #define MODE_CALIBRATION_COMPLETE 12
+#define MODE_MEASURING_BACKSLASH 13
 //
 // endregion
 
@@ -360,6 +361,32 @@ long verticalMotorPositionDelta = 0;
 long lastHorizontalMotorPosition = 0;
 long lastVerticalMotorPosition = 0;
 
+long horizontalBackslash = 0;
+long verticalBackslash = 0;
+int horizontalBackslashDirection = 0;
+int verticalBackslashDirection = 0;
+int horizontalBackslashMoves = 0;
+int verticalBackslashMoves = 0;
+long lastHorizontalEncoderBackslashPosition = 0;
+long lastVerticalEncoderBackslashPosition = 0;
+long lastHorizontalEncoderPosition = 0;
+long lastVerticalEncoderPosition = 0;
+long lastHorizontalBackslashEncoderPosition = 0;
+long lastVerticalBackslashEncoderPosition = 0;
+int lastHorizontalEncoderMoveDirection = 0;
+int lastVerticalEncoderMoveDirection = 0;
+int horizontalBackslashFinished = 0;
+int verticalBackslashFinished = 0;
+
+int horizontalBackSlashing = 0;
+int verticalBackSlashing = 0;
+long horizontalEncoderBackslashLeft = 0;
+long verticalEncoderBackslashLeft = 0;
+long horizontalStandardBackslash = 300000;
+long verticalStandardBackslash = 10000;
+long horizontalMotorStartBackslash = 0;  
+long verticalMotorStartBackslash = 0;  
+
 void setup() {
   Wire.begin(); // Inicia a comunicação I2C
   Wire.beginTransmission(MPU1); //Começa a transmissao de dados para o sensor 1
@@ -531,7 +558,7 @@ void loop() {
 
             // Ensures noise is filtered out
             if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              verticalEncoderPosition = sum;
+              setVerticalEncoderPosition(sum);
             }
             // Serial.print("Encoder bytesc: ");
             // Serial.print(n1);
@@ -618,7 +645,7 @@ void loop() {
 
             // Ensures noise is filtered out
             if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              horizontalEncoderPosition = sum;
+              setHorizontalEncoderPosition(sum);
             }
             // Serial.print("Encoder bytesc: ");
             // Serial.print(n1);
@@ -773,7 +800,31 @@ void loop() {
 //     logMotorsTime = 0;
 //   }
 }
-  
+
+void setHorizontalEncoderPosition(long sum) {
+  horizontalEncoderPosition = sum;
+  if (horizontalEncoderPosition != lastHorizontalEncoderPosition) {
+    if (horizontalEncoderPosition < lastHorizontalEncoderPosition) {
+      lastHorizontalEncoderMoveDirection = -1; 
+    } else {
+      lastHorizontalEncoderMoveDirection = +1; 
+    }
+    lastHorizontalEncoderPosition = horizontalEncoderPosition;
+  }
+}
+
+void setVerticalEncoderPosition(long sum) {
+  verticalEncoderPosition = sum;
+  if (verticalEncoderPosition != lastVerticalEncoderPosition) {
+    if (verticalEncoderPosition < lastVerticalEncoderPosition) {
+      lastVerticalEncoderMoveDirection = -1; 
+    } else {
+      lastVerticalEncoderMoveDirection = +1; 
+    }
+    lastVerticalEncoderPosition = verticalEncoderPosition;
+  }
+}
+
 void calculateEverything() {
   //
   calculateTime();

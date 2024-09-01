@@ -84,6 +84,9 @@ void bluetoothSerialAvailable() {
   } else if (strcmp("move-done", command) == 0) {
     Serial.print("move-done");
     processMoveDoneCommand();
+  } else if (strcmp("measure-backslash", command) == 0) {
+    Serial.print("measure-backslash");
+    processMeasureBackslashCommand();
   } else {
     Serial.print("***");
   }
@@ -93,6 +96,10 @@ void bluetoothSerialAvailable() {
 void processMenuMainCommand() {
   activeMode = MODE_MENU;
   clearSlaveMode();
+}
+
+void processMeasureBackslashCommand() {
+  measureBackslash();
 }
 
 void processTimeCommand() {

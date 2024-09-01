@@ -23,15 +23,18 @@ void moveMotorsTrackingWithEncoder() {
   newEncoderHorizontalPos = mapDouble(azm, azm1, azm2, azmEncoder1, azmEncoder2);
 
   long currentHorizontalMotorPosition = readHorizontalMotorPosition();
-  moveMotorTrackingWithEncoder(0, horizontalMotor, readHorizontalEncoderPosition(), newEncoderHorizontalPos, readHorizontalMotorPosition(), lastHorizontalMotorPosition);
+  
+  void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long currentEncoderPos, long targetEncoderPos, long currentMotorPos, long lastMotorPos, int& backSlashing, long& backslashLeft, long& motorStartBackslash, long standardBackslash) {
+
+  moveMotorTrackingWithEncoder(0, horizontalMotor, readHorizontalEncoderPosition(), newEncoderHorizontalPos, readHorizontalMotorPosition(), lastHorizontalMotorPosition, horizontalEncoderBackslashLeft, horizontalMotorStartBackslash, horizontalStandardBackslash);
   lastHorizontalMotorPosition = currentHorizontalMotorPosition;
 
   long currentVerticalMotorPosition = readVerticalMotorPosition();
-  moveMotorTrackingWithEncoder(1, verticalMotor, readVerticalEncoderPosition(), newEncoderVerticalPos, readVerticalMotorPosition(), lastVerticalMotorPosition);
+  moveMotorTrackingWithEncoder(1, verticalMotor, readVerticalEncoderPosition(), newEncoderVerticalPos, readVerticalMotorPosition(), lastVerticalMotorPosition, verticalEncoderBackslashLeft, verticalMotorStartBackslash, verticalStandardBackslash);
   lastVerticalMotorPosition = currentVerticalMotorPosition;
 }
 
-void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long currentEncoderPos, long targetEncoderPos, long currentMotorPos, long lastMotorPos) {
+void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long currentEncoderPos, long targetEncoderPos, long currentMotorPos, long lastMotorPos, int& backSlashing, long& backslashLeft, long& motorStartBackslash, long standardBackslash) {
   long diff = abs(currentEncoderPos - targetEncoderPos); 
   if (diff < 5) {
     // Nothing to do
@@ -57,10 +60,29 @@ void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long cur
   Serial.print(currentSpeed);
   Serial.println();
   
-  horizontalMotor->setSpeedInHz(abs(horizontalMotorSpeed));
-
   if (encoderDirection != motorDirection) {
-    motor->setSpeedInHz(4000);
+    if (!backSlashing) {
+      backslashLeft = standardBackslash;
+      motorStartBackslash = motor->getCurrentPosition();
+      backSlashing = 1;
+      motor->setSpeedInHz(7000);
+    } else {
+      long motorDiff = abs(motor->getCurrentPosition() - motorStartBackslash);
+      backslashLeft -= motorDiff;
+      if (backslashLeft > 20000) {
+        motor->setSpeedInHz(7000);
+      } else if(backslashLeft > 15000) {
+        motor->setSpeedInHz(6000);
+      } else if(backslashLeft > 15000) {
+        motor->setSpeedInHz(6000);
+      } else if(backslashLeft > 10000) {
+        motor->setSpeedInHz(3000);
+      } else if(backslashLeft > 5000) {
+        motor->setSpeedInHz(1000);
+      } else {
+        motor->setSpeedInHz(500);
+      }
+    } 
   } else  if (diff < 10) {
     motor->setSpeedInHz(500);
   } else if (diff > 10 && diff < 20) {
@@ -96,6 +118,26 @@ void moveVerticalMotorTo(long newPosition) {
 }
 
 void moveMotors() {
+  if (activeMode == MODE_MEASURING_BACKSLASH) {
+    // void moveMeasuringBackslash(FastAccelStepper *motor, long encoderPosition, int& backslashFinished, int& backslashMoveCount, int& backslashMoveDirection, int& encoderMoveDirection, long& backlashValue) {
+    if (!horizontalBackslashFinished) {
+      moveMeasuringBackslash(
+        horizontalMotor, 
+        lastHorizontalEncoderBackslashPosition, 
+        horizontalEncoderPosition, 
+        horizontalBackslashFinished, 
+        horizontalBackslashMoves, 
+        horizontalBackslashDirection, 
+        lastHorizontalEncoderMoveDirection, 
+        horizontalBackslash);
+    }
+    
+    if (horizontalBackslashFinished) {
+      activeMode = MODE_MENU;
+    }
+    return;
+  }
+  
   if (calibrated) {
     if(activeMode == MODE_MOVE_COORDINATES) {
       horizontalSpeed = readHorizontalControl();
@@ -168,6 +210,102 @@ void moveMotors() {
       }
     }
   }
-//   horizontalMotor->move(horizontalMotorSpeed * horizontalMultiplier);
-//   verticalMotor->move(verticalMotorSpeed * verticalMultiplier);
+}
+
+void measureBackslash() {
+  activeMode = MODE_MEASURING_BACKSLASH;
+  horizontalBackslashMoves = 0;
+  verticalBackslashMoves = 0;
+  lastHorizontalEncoderBackslashPosition = horizontalEncoderPosition;
+  lastVerticalEncoderBackslashPosition = verticalEncoderPosition;
+  lastHorizontalEncoderBackslashPosition = horizontalEncoderPosition;
+  lastVerticalEncoderBackslashPosition = verticalEncoderPosition;
+  if (lastHorizontalEncoderMoveDirection == 0) {
+    horizontalBackslashDirection = 1;
+  } else {
+    lastHorizontalEncoderMoveDirection = -1;
+  }
+}
+
+void moveMeasuringBackslash(
+  FastAccelStepper *motor, 
+  long& lastEncoderBackslashPosition, 
+  long encoderPosition, 
+  int& backslashFinished, 
+  int& backslashMoveCount, 
+  int& backslashMoveDirection, 
+  int& encoderMoveDirection, 
+  long& backlashValue) {
+  //
+  
+  Serial.print("Backslash parameters (");
+  Serial.print("encoderPosition: ");
+  Serial.print(encoderPosition);
+  Serial.print(", lastEncoderBackslashPosition: ");
+  Serial.print(lastEncoderBackslashPosition);
+  Serial.print(", backslashFinished: ");
+  Serial.print(backslashFinished);
+  Serial.print(", backslashMoveCount: ");
+  Serial.print(backslashMoveCount);
+  Serial.print(", backslashMoveDirection: ");
+  Serial.print(backslashMoveDirection);
+  Serial.print(", encoderMoveDirection: ");
+  Serial.print(encoderMoveDirection);
+  Serial.print(", backlashValue: ");
+  Serial.print(backlashValue);
+  Serial.print(")");
+  Serial.println();
+  
+  // Still moving in the same direction
+  if (backslashMoveDirection != encoderMoveDirection) {
+    Serial.print("Backslash different direction... ");
+    if (abs(lastHorizontalEncoderBackslashPosition - horizontalEncoderPosition) > 10) {
+      motor->stopMove();
+      backslashMoveDirection = encoderMoveDirection * -1;
+    } else {
+      lastHorizontalEncoderBackslashPosition = horizontalEncoderPosition;
+      motor->setSpeedInHz(4000);
+      motor->applySpeedAcceleration();
+      if (backslashMoveDirection > 0) {
+        motor->runForward();
+      } else {
+        motor->runBackward();
+      }
+      long delta = abs(encoderPosition - lastHorizontalEncoderBackslashPosition);
+      if (delta > backlashValue) {
+        Serial.print("New delta is higher than backslash value");
+        Serial.print(", delta: ");
+        Serial.print(delta);
+        Serial.print(", backlashValue: ");
+        Serial.print(backlashValue);
+        Serial.println();
+        backlashValue = delta;
+      }
+    }
+  } else {
+    Serial.println("Backslash same direction..");
+    if (abs(lastHorizontalEncoderBackslashPosition - horizontalEncoderPosition) > 10) {
+      motor->stopMove();
+      backslashMoveCount++;
+      if (backslashMoveCount > 2) {
+        Serial.print("Backslash measure finished");
+        Serial.print(", backlashValue: ");
+        Serial.print(backlashValue);
+        Serial.println();
+        backslashFinished = 1;
+      } else {
+        Serial.println("Backslash measure inverting");
+        backslashMoveDirection = encoderMoveDirection * -1;
+      }
+    } else {
+      Serial.print("Same direction, no difference, keep moving");
+      motor->setSpeedInHz(4000);
+      motor->applySpeedAcceleration();
+      if (backslashMoveDirection > 0) {
+        motor->runForward();
+      } else {
+        motor->runBackward();
+      }
+    }
+  }
 }
