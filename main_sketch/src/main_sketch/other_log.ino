@@ -5,16 +5,16 @@
 //
 
 void reportStatus() {
-  return;
+//  return;
   
   Serial.print("T: [");
   Serial.print(loopsPerSec);
   Serial.print("]");
 
   Serial.print(", horizontalEncoderPosition: ");
-  Serial.print(horizontalEncoderPosition);
-  Serial.print(", verticalEncoderPosition: ");
-  Serial.print(verticalEncoderPosition);
+  Serial.print(readHorizontalEncoderPosition());
+  Serial.print(", verticalEncoderPosition(): ");
+  Serial.print(readVerticalEncoderPosition());
   Serial.print(", AccX: ");
   Serial.print(AccX);
   Serial.print(", AccY: ");
@@ -143,11 +143,17 @@ void reportStatus() {
   Serial.print("0.dec [");
   Serial.print(calibrationPoint0.dec);
   Serial.print("], ");
-  Serial.print("0.horizontalPosition [");
-  Serial.print(calibrationPoint0.horizontalPosition);
+  Serial.print("0.horizontalMotorPosition [");
+  Serial.print(calibrationPoint0.horizontalMotorPosition);
   Serial.print("], ");
-  Serial.print("0.verticalPosition [");
-  Serial.print(calibrationPoint0.verticalPosition);
+  Serial.print("0.verticalMotorPosition [");
+  Serial.print(calibrationPoint0.verticalMotorPosition);
+  Serial.print("], ");
+  Serial.print("0.horizontalEncoderPosition [");
+  Serial.print(calibrationPoint0.horizontalEncoderPosition);
+  Serial.print("], ");
+  Serial.print("0.verticalEncoderPosition [");
+  Serial.print(calibrationPoint0.verticalEncoderPosition);
   Serial.print("], ");
   Serial.print("1.ra [");
   Serial.print(calibrationPoint1.ra);
@@ -155,12 +161,18 @@ void reportStatus() {
   Serial.print("1.dec [");
   Serial.print(calibrationPoint1.dec);
   Serial.print("], ");
-  Serial.print("1.horizontalPosition [");
-  Serial.print(calibrationPoint1.horizontalPosition);
+  Serial.print("1.horizontalMotorPosition [");
+  Serial.print(calibrationPoint1.horizontalMotorPosition);
   Serial.print("], ");
-  Serial.print("1.verticalPosition [");
-  Serial.print(calibrationPoint1.verticalPosition);
+  Serial.print("1.verticalMotorPosition [");
+  Serial.print(calibrationPoint1.verticalMotorPosition);
   Serial.print("], ");
+  Serial.print("1.horizontalEncoderPosition [");
+  Serial.print(calibrationPoint1.horizontalEncoderPosition);
+  Serial.print("], ");
+  Serial.print("1.verticalEncoderPosition [");
+  Serial.print(calibrationPoint1.verticalEncoderPosition);
+  Serial.print("], ");  
 
   Serial.print("calibration: ");
   Serial.print("alt1 [");
@@ -243,36 +255,36 @@ void reportStatus() {
 
   // Serial.println();
   Serial.print("HORIZONTAL: ");
-  Serial.print("newHorizontalPos: ");
-  Serial.print(newHorizontalPos);
+  Serial.print("newMotorHorizontalPos: ");
+  Serial.print(newMotorHorizontalPos);
   Serial.print(", motor. speed ticks(): ");
   Serial.print(horizontalMotor->getCurrentSpeedInUs());
   Serial.print("/ ");
   Serial.print(horizontalMotor->getMaxSpeedInUs());
   Serial.print(", pos: ");
-  Serial.print(horizontalMotor->getCurrentPosition());
+  Serial.print(readHorizontalMotorPosition());
   Serial.print(", %: ");
   Serial.print(maxHorizontalPercentage);
   Serial.print(", wantedPos: ");
-  Serial.print(newHorizontalPos);
+  Serial.print(newMotorHorizontalPos);
   Serial.print(", ");
 
   float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
 
   // Serial.println();
   Serial.print("VERTICAL: ");
-  Serial.print("newVerticalPos: ");
-  Serial.print(newVerticalPos);
+  Serial.print("newMotorVerticalPos: ");
+  Serial.print(newMotorVerticalPos);
   Serial.print(", motor. speed ticks(): ");
   Serial.print(verticalMotor->getCurrentSpeedInUs());
   Serial.print("/ ");
   Serial.print(verticalMotor->getMaxSpeedInUs());
   Serial.print(", pos: ");
-  Serial.print(verticalMotor->getCurrentPosition());
+  Serial.print(readVerticalMotorPosition());
   Serial.print(", %: ");
   Serial.print(maxVerticalPercentage);
   Serial.print(", wantedPos: ");
-  Serial.print(newVerticalPos);
+  Serial.print(newMotorVerticalPos);
   Serial.print("");
 
   Serial.println();
@@ -298,4 +310,13 @@ void reportObject(target obj) {
   Serial.print("] dec [");
   Serial.print(obj.dec);
   Serial.print("]");
+}
+
+void reportLog(char* log) {
+  Serial.println();
+  Serial.print(log);
+}
+
+void finishLog() {
+  Serial.println();
 }

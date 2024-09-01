@@ -287,8 +287,8 @@ void drawMovingMotor() {
   printLcdNumber(2, 0, rightJoystickSpeed, 0);
   printLcdNumber(5, 0, horizontalSpeed, 0);
   printLcdNumber(10, 0, verticalSpeed, 0);
-  printLcdNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
-  printLcdNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
+  printLcdNumber(0, 1, readHorizontalMotorPosition(), 0);
+  printLcdNumber(8, 1, readVerticalMotorPosition(), 0);
 }
 
 void drawCalibrateMoving() {
@@ -300,8 +300,8 @@ void drawCalibrateMoving() {
   printLcdNumber(2, 0, rightJoystickSpeed, 0);
   printLcdNumber(5, 0, horizontalSpeed, 0);
   printLcdNumber(10, 0, verticalSpeed, 0);
-  printLcdNumber(0, 1, horizontalMotor->getCurrentPosition(), 0);
-  printLcdNumber(8, 1, verticalMotor->getCurrentPosition(), 0);
+  printLcdNumber(0, 1, readHorizontalMotorPosition(), 0);
+  printLcdNumber(8, 1, readVerticalMotorPosition(), 0);
 } 
 
 void drawCalibrateStarComplete() {
@@ -373,12 +373,12 @@ void drawAzimuthAltitude() {
     case 6:
       printLcdAt(0, 0, "> HRZ M POS:    ");
       printLcdAt(0, 1, "                ");
-      printLcdFloatingPointNumber(1, 1, horizontalMotor->getCurrentPosition(), 14, 0);
+      printLcdFloatingPointNumber(1, 1, readHorizontalMotorPosition(), 14, 0);
       break;
     case 7:
       printLcdAt(0, 0, "> VER M POS:    ");
       printLcdAt(0, 1, "                ");
-      printLcdFloatingPointNumber(1, 1, verticalMotor->getCurrentPosition(), 14, 0);
+      printLcdFloatingPointNumber(1, 1, readVerticalMotorPosition(), 14, 0);
       break;
     case 8:
       printLcdAt(0, 0, "> CALB. ALT 1:   ");

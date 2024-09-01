@@ -46,10 +46,10 @@ Clock and delta
 #include <Ephemeris.h>
 #include <EEPROM.h>
 
-#define MAX_VERTICAL_SPEED 15000
-#define MAX_VERTICAL_ACCELERATION 1000
-#define MAX_HORIZONTAL_SPEED 15000
-#define MAX_HORIZONTAL_ACCELERATION 1000
+#define MAX_VERTICAL_SPEED 7000
+#define MAX_VERTICAL_ACCELERATION 14000
+#define MAX_HORIZONTAL_SPEED 7000
+#define MAX_HORIZONTAL_ACCELERATION 14000
 
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -202,8 +202,10 @@ typedef struct {
 typedef struct {
   double ra;
   double dec;
-  long horizontalPosition;
-  long verticalPosition;
+  long horizontalMotorPosition;
+  long verticalMotorPosition;
+  long horizontalEncoderPosition;
+  long verticalEncoderPosition;
   int currentYear;
   int currentMonth;
   int currentDay;
@@ -272,6 +274,8 @@ double azm;
 
 double currentMotorAlt;
 double currentMotorAzm;
+double currentEncoderAlt;
+double currentEncoderAzm;
 
 double lastStarRa = -999;
 double lastStarDec = -999;
@@ -308,12 +312,18 @@ double alt1;
 double alt2;
 double altMotor1;
 double altMotor2;
+double altEncoder1;
+double altEncoder2;
 double azm1;
 double azm2;
 double azmMotor1;
 double azmMotor2;
-long newVerticalPos;
-long newHorizontalPos;
+double azmEncoder1;
+double azmEncoder2;
+long newMotorVerticalPos;
+long newMotorHorizontalPos;
+long newEncoderVerticalPos;
+long newEncoderHorizontalPos;
 //
 // endregion
 
@@ -342,6 +352,13 @@ int verticalEncoderBufferPointer = 0;
 
 long horizontalEncoderPosition = 0;
 long verticalEncoderPosition = 0;
+
+long horizontalEncoderPositionDelta = 0;
+long verticalEncoderPositionDelta = 0;
+long horizontalMotorPositionDelta = 0;
+long verticalMotorPositionDelta = 0;
+long lastHorizontalMotorPosition = 0;
+long lastVerticalMotorPosition = 0;
 
 void setup() {
   Wire.begin(); // Inicia a comunicação I2C
@@ -413,6 +430,8 @@ void setup() {
 
   digitalWrite(LCD_LIGHT_CONTROL, HIGH);
   //SolarSystemObject solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime((SolarSystemObjectIndex)num, day, month, year, hour, minute, second);
+  
+  readEEPROMState();
 }
 
 void loop() {
@@ -561,7 +580,6 @@ void loop() {
         }
       }
     }
-    monitorEncoderTimer = 0;
 
     while(Serial3.available())
     { 
@@ -649,6 +667,8 @@ void loop() {
         }
       }
     }
+
+    monitorEncoderTimer = 0;
   }
  
    if(Serial1.available()) {
@@ -718,6 +738,7 @@ void loop() {
   }
   if (lcdTime >= 250) {    // reports speed and position each second
     reportLcd();
+    
     lcdTime = 0;
   }
 
@@ -735,6 +756,7 @@ void loop() {
   
   if (androidRefreshTime > 1000) {
     reportBluetooth();
+    
     androidRefreshTime = 0;
   }
   
@@ -802,25 +824,16 @@ void storeCalibrateCoordinates() {
   usePoint->currentHour = currentHour;
   usePoint->currentMinute = currentMinute;
   usePoint->currentSecond = currentSecond;
-  usePoint->horizontalPosition = horizontalMotor->getCurrentPosition(); 
-  usePoint->verticalPosition = verticalMotor->getCurrentPosition(); 
+  usePoint->horizontalMotorPosition = readHorizontalMotorPosition(); 
+  usePoint->verticalMotorPosition = readVerticalMotorPosition(); 
+  usePoint->horizontalEncoderPosition = readHorizontalEncoderPosition(); 
+  usePoint->verticalEncoderPosition = readVerticalEncoderPosition(); 
 }
 
 void prepareStarCoordinates() {
   ra = calibratingTarget->ra;
   dec = calibratingTarget->dec;
   calculateEverything();
-}
-
-void prepareToMoveWithCalibration() {
-    horizontalMotor->setAcceleration(MAX_HORIZONTAL_ACCELERATION);
-    horizontalMotor->setAutoEnable(true);
-    verticalMotor->setAcceleration(MAX_VERTICAL_ACCELERATION);
-    verticalMotor->setAutoEnable(true);
-    horizontalMotor->setSpeedInHz(MAX_HORIZONTAL_SPEED);
-    verticalMotor->setSpeedInHz(MAX_VERTICAL_SPEED);
-    horizontalMotor->applySpeedAcceleration();
-    verticalMotor->applySpeedAcceleration();
 }
 
 void storeCalibrationData() {
@@ -849,23 +862,22 @@ void storeCalibrationData() {
   azm2 = horizontalCoordinates.azi;
   alt2 = horizontalCoordinates.alt;                      
 
-  altMotor1 = calibrationPoint0.verticalPosition;
-  altMotor2 = calibrationPoint1.verticalPosition;
-  azmMotor1 = calibrationPoint0.horizontalPosition;
-  azmMotor2 = calibrationPoint1.horizontalPosition;
+  altMotor1 = calibrationPoint0.verticalMotorPosition;
+  altMotor2 = calibrationPoint1.verticalMotorPosition;
+  azmMotor1 = calibrationPoint0.horizontalMotorPosition;
+  azmMotor2 = calibrationPoint1.horizontalMotorPosition;
+  altEncoder1 = calibrationPoint0.verticalEncoderPosition;
+  altEncoder2 = calibrationPoint1.verticalEncoderPosition;
+  azmEncoder1 = calibrationPoint0.horizontalEncoderPosition;
+  azmEncoder2 = calibrationPoint1.horizontalEncoderPosition;
 
   // So that it doesn't move when the last point moves
   ra = calibrationPoint1.ra;
   dec = calibrationPoint1.dec;
+  
+  storeEEPROMData();
 
   calculateEverything();
-}
-
-void moveMotorsTracking() {
-  newVerticalPos = mapDouble(alt, alt1, alt2, altMotor1, altMotor2);
-  newHorizontalPos = mapDouble(azm, azm1, azm2, azmMotor1, azmMotor2);
-  verticalMotor->moveTo(newVerticalPos);
-  horizontalMotor->moveTo(newHorizontalPos);
 }
 
 int readHorizontalControl() {
@@ -894,76 +906,3 @@ int readVerticalControl() {
   }
 }
 
-void moveMotors() {
-  if (calibrated) {
-    if(activeMode == MODE_MOVE_COORDINATES) {
-      horizontalSpeed = readHorizontalControl();
-      verticalSpeed = readVerticalControl();
-      horizontalCoordinateSpeed = mapDouble(horizontalSpeed, -100, +100, -1, +1) / 500.0; 
-      verticalCoordinateSpeed = mapDouble(verticalSpeed, -100, +100, -1, +1) / 500.0;
-      long horizontalMotorDiff = abs(horizontalMotor->getCurrentPosition() - newHorizontalPos);
-      if (horizontalMotorDiff < MAX_HORIZONTAL_SPEED) {
-        ra += horizontalCoordinateSpeed;
-      }
-      long verticalMotorDiff = abs(verticalMotor->getCurrentPosition() - newVerticalPos);
-      if (verticalMotorDiff < MAX_VERTICAL_SPEED) {
-        dec += verticalCoordinateSpeed;
-      }
-    }
-    
-    currentMotorAlt = mapDouble(verticalMotor->getCurrentPosition(), altMotor1, altMotor2, alt1, alt2);
-    currentMotorAzm = mapDouble(horizontalMotor->getCurrentPosition(), azmMotor1, azmMotor2, azm1, azm2);
-
-    moveMotorsTracking();
-  } else {
-    currentMotorAlt = alt;
-    currentMotorAzm = azm;
-
-    if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
-      horizontalSpeed = readHorizontalControl();
-      verticalSpeed = readVerticalControl();
-      horizontalMotorSpeed = map(horizontalSpeed, -100, +100, -1 * MAX_HORIZONTAL_SPEED, MAX_HORIZONTAL_SPEED);
-      verticalMotorSpeed = map(verticalSpeed, -100, +100, -1 * MAX_VERTICAL_SPEED, MAX_VERTICAL_SPEED);
-    } else {
-      horizontalSpeed = 0;
-      verticalSpeed = 0;
-      horizontalMotorSpeed = 0;
-      verticalMotorSpeed = 0;
-    }
-
-    int horizontalMultiplier = 1;
-    int verticalMultiplier = 1;
-    if (horizontalMotorSpeed < 0) {
-      horizontalMultiplier = -1; 
-    }
-    if (verticalMotorSpeed < 0) {
-      verticalMultiplier = -1; 
-    }
-
-    if(horizontalMotorSpeed == 0 || horizontalSpeed == 0) {
-      horizontalMotor->stopMove();
-    } else {
-      horizontalMotor->setSpeedInHz(abs(horizontalMotorSpeed));
-      horizontalMotor->applySpeedAcceleration();
-      if (horizontalMultiplier > 0) {
-        horizontalMotor->runForward();
-      } else {
-        horizontalMotor->runBackward();
-      }
-    }
-
-    if(verticalMotorSpeed == 0 || verticalSpeed == 0) {
-      verticalMotor->stopMove();
-    } else {
-      verticalMotor->setSpeedInHz(abs(verticalMotorSpeed));
-      verticalMotor->applySpeedAcceleration();
-      if (verticalMultiplier > 0) {
-        verticalMotor->runForward();
-      } else {
-        verticalMotor->runBackward();
-      }
-    }
-  }
-//   horizontalMotor->move(horizontalMotorSpeed * horizontalMultiplier);
-//   verticalMotor->move(verticalMotorSpeed * verticalMultiplier);
-}

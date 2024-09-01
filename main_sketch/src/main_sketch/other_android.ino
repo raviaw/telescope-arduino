@@ -14,10 +14,10 @@ void reportBluetooth() {
   doc["acc-y"] = AccY;
   doc["acc-z"] = AccZ;
   doc["acc-x"] = AccX;
-  doc["hor-motor"] = horizontalMotor->getCurrentPosition();
-  doc["ver-motor"] = verticalMotor->getCurrentPosition();
-  doc["hor-encoder"] = horizontalEncoderPosition;
-  doc["ver-encoder"] = verticalEncoderPosition;
+  doc["hor-motor"] = readHorizontalMotorPosition();
+  doc["ver-motor"] = readVerticalMotorPosition();
+  doc["hor-encoder"] = readHorizontalEncoderPosition();
+  doc["ver-encoder"] = readVerticalEncoderPosition();
   serializeJson(doc, Serial1);
 }
 
@@ -33,6 +33,9 @@ void bluetoothSerialAvailable() {
   if (strcmp("time", command) == 0) {
     Serial.print("time");
     processTimeCommand();
+  } else if (strcmp("erase", command) == 0) {
+    Serial.print("erase");
+    processEraseCommand();
   } else if (strcmp("master", command) == 0) {
     Serial.print("master");
     clearSlaveMode();
@@ -97,6 +100,14 @@ void processTimeCommand() {
   Serial.print(", parsing time: ");
   Serial.print(time);
   parseReceivedTimeString(time);
+}
+
+void(*resetFunc) (void) = 0; // create a standard reset function
+
+void processEraseCommand() {
+  resetEEPROM();
+  delay(500);
+  resetFunc();
 }
 
 void processCalibrateStartCommand() {
