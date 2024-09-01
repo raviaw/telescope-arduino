@@ -47,9 +47,9 @@ Clock and delta
 #include <EEPROM.h>
 
 #define MAX_VERTICAL_SPEED 7000
-#define MAX_VERTICAL_ACCELERATION 14000
+#define MAX_VERTICAL_ACCELERATION 28000
 #define MAX_HORIZONTAL_SPEED 7000
-#define MAX_HORIZONTAL_ACCELERATION 14000
+#define MAX_HORIZONTAL_ACCELERATION 28000
 
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -493,7 +493,7 @@ void loop() {
     accelerometerTimer = 0;
   }
 
-  if (monitorEncoderTimer > 40) {
+  if (monitorEncoderTimer > 50) {
     while(Serial2.available())
     { 
       int nextChar = Serial2.read();

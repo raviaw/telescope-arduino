@@ -23,22 +23,57 @@ void moveMotorsTrackingWithEncoder() {
   newEncoderHorizontalPos = mapDouble(azm, azm1, azm2, azmEncoder1, azmEncoder2);
 
   long currentHorizontalMotorPosition = readHorizontalMotorPosition();
-  moveMotorTrackingWithEncoder(horizontalMotor, readHorizontalEncoderPosition(), newEncoderHorizontalPos, readHorizontalMotorPosition(), lastHorizontalMotorPosition);
+  moveMotorTrackingWithEncoder(0, horizontalMotor, readHorizontalEncoderPosition(), newEncoderHorizontalPos, readHorizontalMotorPosition(), lastHorizontalMotorPosition);
   lastHorizontalMotorPosition = currentHorizontalMotorPosition;
 
   long currentVerticalMotorPosition = readVerticalMotorPosition();
-  moveMotorTrackingWithEncoder(verticalMotor, readVerticalEncoderPosition(), newEncoderVerticalPos, readVerticalMotorPosition(), lastVerticalMotorPosition);
+  moveMotorTrackingWithEncoder(1, verticalMotor, readVerticalEncoderPosition(), newEncoderVerticalPos, readVerticalMotorPosition(), lastVerticalMotorPosition);
   lastVerticalMotorPosition = currentVerticalMotorPosition;
 }
 
-void moveMotorTrackingWithEncoder(FastAccelStepper *motor, long currentEncoderPos, long targetEncoderPos, long currentMotorPos, long lastMotorPos) {
-  if (abs(currentEncoderPos - targetEncoderPos) < 20) {
+void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long currentEncoderPos, long targetEncoderPos, long currentMotorPos, long lastMotorPos) {
+  long diff = abs(currentEncoderPos - targetEncoderPos); 
+  if (diff < 5) {
     // Nothing to do
+    motor->stopMove();
     return;
   }
   int encoderDirection = currentEncoderPos < targetEncoderPos ? +1 : -1;
   int motorDirection = currentMotorPos < lastMotorPos ? +1 : -1;
-  motor->move(encoderDirection * 20);
+  long currentSpeed = abs(motor->getCurrentSpeedInMilliHz(true));
+  Serial.print("Motor: ");
+  Serial.print(motorNo);
+  Serial.print(", current: ");
+  Serial.print(currentEncoderPos);
+  Serial.print(", target: ");
+  Serial.print(targetEncoderPos);
+  Serial.print(", diff: ");
+  Serial.print(diff);
+  Serial.print(", encoderDirection: ");
+  Serial.print(encoderDirection);
+  Serial.print(", motorDirection: ");
+  Serial.print(motorDirection);
+  Serial.print(", currentSpeed: ");
+  Serial.print(currentSpeed);
+  Serial.println();
+  
+  horizontalMotor->setSpeedInHz(abs(horizontalMotorSpeed));
+
+  if (encoderDirection != motorDirection) {
+    motor->setSpeedInHz(4000);
+  } else  if (diff < 10) {
+    motor->setSpeedInHz(500);
+  } else if (diff > 10 && diff < 20) {
+    motor->setSpeedInHz(1000);
+  } else {
+    motor->setSpeedInHz(2000);
+  }
+  motor->applySpeedAcceleration();
+  if (encoderDirection > 0) {
+    motor->runForward();
+  } else {
+    motor->runBackward();
+  }
 }
 
 void prepareToMoveWithCalibration() {
