@@ -24,13 +24,11 @@ void moveMotorsTrackingWithEncoder() {
 
   long currentHorizontalMotorPosition = readHorizontalMotorPosition();
   
-  void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long currentEncoderPos, long targetEncoderPos, long currentMotorPos, long lastMotorPos, int& backSlashing, long& backslashLeft, long& motorStartBackslash, long standardBackslash) {
-
-  moveMotorTrackingWithEncoder(0, horizontalMotor, readHorizontalEncoderPosition(), newEncoderHorizontalPos, readHorizontalMotorPosition(), lastHorizontalMotorPosition, horizontalEncoderBackslashLeft, horizontalMotorStartBackslash, horizontalStandardBackslash);
+  moveMotorTrackingWithEncoder(0, horizontalMotor, readHorizontalEncoderPosition(), newEncoderHorizontalPos, readHorizontalMotorPosition(), lastHorizontalMotorPosition, horizontalBackSlashing, horizontalEncoderBackslashLeft, horizontalMotorStartBackslash, horizontalStandardBackslash);
   lastHorizontalMotorPosition = currentHorizontalMotorPosition;
 
   long currentVerticalMotorPosition = readVerticalMotorPosition();
-  moveMotorTrackingWithEncoder(1, verticalMotor, readVerticalEncoderPosition(), newEncoderVerticalPos, readVerticalMotorPosition(), lastVerticalMotorPosition, verticalEncoderBackslashLeft, verticalMotorStartBackslash, verticalStandardBackslash);
+  // moveMotorTrackingWithEncoder(1, verticalMotor, readVerticalEncoderPosition(), newEncoderVerticalPos, readVerticalMotorPosition(), lastVerticalMotorPosition, verticalBackSlashing, verticalEncoderBackslashLeft, verticalMotorStartBackslash, verticalStandardBackslash);
   lastVerticalMotorPosition = currentVerticalMotorPosition;
 }
 
@@ -58,6 +56,14 @@ void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long cur
   Serial.print(motorDirection);
   Serial.print(", currentSpeed: ");
   Serial.print(currentSpeed);
+  Serial.print(", backSlashing: ");
+  Serial.print(backSlashing);
+  Serial.print(", backslashLeft: ");
+  Serial.print(backslashLeft);
+  Serial.print(", motorStartBackslash: ");
+  Serial.print(motorStartBackslash);
+  Serial.print(", standardBackslash: ");
+  Serial.print(standardBackslash);
   Serial.println();
   
   if (encoderDirection != motorDirection) {
@@ -82,14 +88,17 @@ void moveMotorTrackingWithEncoder(int motorNo, FastAccelStepper *motor, long cur
       } else {
         motor->setSpeedInHz(500);
       }
-    } 
-  } else  if (diff < 10) {
-    motor->setSpeedInHz(500);
-  } else if (diff > 10 && diff < 20) {
-    motor->setSpeedInHz(1000);
+    }
   } else {
-    motor->setSpeedInHz(2000);
-  }
+    backSlashing = 0;
+    if (diff < 10) {
+      motor->setSpeedInHz(500);
+    } else if (diff > 10 && diff < 20) {
+      motor->setSpeedInHz(1000);
+    } else {
+      motor->setSpeedInHz(2000);
+    }
+  } 
   motor->applySpeedAcceleration();
   if (encoderDirection > 0) {
     motor->runForward();

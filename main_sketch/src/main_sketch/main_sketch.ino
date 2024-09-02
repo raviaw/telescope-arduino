@@ -35,7 +35,7 @@ Clock and delta
 #include <StreamUtils.h>
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
-#include "FastAccelStepper.h"
+#include <FastAccelStepper.h>
 #include <Wire.h>
 #include <RTClib.h>
 #include <Encoder.h>
@@ -346,10 +346,6 @@ SolarSystemObject solarSystemObject;
 
 char serialBuffer[128];
 int serialBufferPointer = 0;
-byte horizontalEncoderBuffer[128];
-int horizontalEncoderBufferPointer = 0;
-byte verticalEncoderBuffer[128];
-int verticalEncoderBufferPointer = 0;
 
 long horizontalEncoderPosition = 0;
 long verticalEncoderPosition = 0;
