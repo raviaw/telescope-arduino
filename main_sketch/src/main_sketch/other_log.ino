@@ -12,9 +12,9 @@ void reportStatus() {
   Serial.print("]");
 
   Serial.print(", horizontalEncoderPosition: ");
-  Serial.print(readHorizontalEncoderPosition());
-  Serial.print(", verticalEncoderPosition(): ");
-  Serial.print(readVerticalEncoderPosition());
+  Serial.print(horizontalMagic->readEncoderPosition());
+  Serial.print(", verticalEncoderPosition: ");
+  Serial.print(verticalMagic->readEncoderPosition());
   Serial.print(", AccX: ");
   Serial.print(AccX);
   Serial.print(", AccY: ");
@@ -262,7 +262,7 @@ void reportStatus() {
   Serial.print("/ ");
   Serial.print(horizontalMotor->getMaxSpeedInUs());
   Serial.print(", pos: ");
-  Serial.print(readHorizontalMotorPosition());
+  Serial.print(horizontalMagic->readMotorPosition());
   Serial.print(", %: ");
   Serial.print(maxHorizontalPercentage);
   Serial.print(", wantedPos: ");
@@ -280,7 +280,7 @@ void reportStatus() {
   Serial.print("/ ");
   Serial.print(verticalMotor->getMaxSpeedInUs());
   Serial.print(", pos: ");
-  Serial.print(readVerticalMotorPosition());
+  Serial.print(verticalMagic->readMotorPosition());
   Serial.print(", %: ");
   Serial.print(maxVerticalPercentage);
   Serial.print(", wantedPos: ");

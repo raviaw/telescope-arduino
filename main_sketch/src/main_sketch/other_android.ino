@@ -14,10 +14,10 @@ void reportBluetooth() {
   doc["acc-y"] = AccY;
   doc["acc-z"] = AccZ;
   doc["acc-x"] = AccX;
-  doc["hor-motor"] = readHorizontalMotorPosition();
-  doc["ver-motor"] = readVerticalMotorPosition();
-  doc["hor-encoder"] = readHorizontalEncoderPosition();
-  doc["ver-encoder"] = readVerticalEncoderPosition();
+  doc["hor-motor"] = horizontalMagic->readMotorPosition();
+  doc["ver-motor"] = verticalMagic->readMotorPosition();
+  doc["hor-encoder"] = horizontalMagic->readEncoderPosition();
+  doc["ver-encoder"] = verticalMagic->readEncoderPosition();
   serializeJson(doc, Serial1);
 }
 

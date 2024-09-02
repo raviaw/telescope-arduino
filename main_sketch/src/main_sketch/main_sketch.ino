@@ -31,7 +31,6 @@ Clock and delta
 11
 00000000000 0 to 1024
 */
-#include <ArduinoJson.h>
 #include <StreamUtils.h>
 #include <elapsedMillis.h>
 #include <LiquidCrystal.h> // Inclui biblioteca "LiquidCristal.h"
@@ -43,28 +42,13 @@ Clock and delta
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
-#include <Ephemeris.h>
 #include <EEPROM.h>
 
-#define MAX_VERTICAL_SPEED 7000
-#define MAX_VERTICAL_ACCELERATION 28000
-#define MAX_HORIZONTAL_SPEED 7000
-#define MAX_HORIZONTAL_ACCELERATION 28000
+#include "Globals.hpp"
+#include "MotorWithEncoder.h"
 
-#define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-#define SCREEN_TOP_AREA_PIXELS 16
-#define SCREEN_BOTTOM_AREA_PIXELS 48
-
-const int MPU1 = 0x69; // Endereço do sensor 1
-
-float AccX,AccY,AccZ,Tmp1,GyroX,GyroY,GyroZ;
-float accAngleX;
-float accAngleY;
-
-// region Engine declarations
-//  
+// Global objects
+//
 LiquidCrystal lcd(11, 12, 4, 5, 9, 10); 
 RTC_DS3231 rtc;
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -72,40 +56,11 @@ FastAccelStepper *verticalMotor = NULL;
 FastAccelStepper *horizontalMotor = NULL;           
 Encoder knob(2, 3);
 Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+MotorWithEncoder *verticalMagic = NULL;
+MotorWithEncoder *horizontalMagic = NULL;           
 
-#define VERTICAL_STEPPER_STEP_PIN 7
-#define VERTICAL_STEPPER_DIR_PIN 24
-#define HORIZONTAL_STEPPER_STEP_PIN 6
-#define HORIZONTAL_STEPPER_DIR_PIN 22
-
-#define HORIZONTAL_JOYSTICK_LEFT 8
-#define VERTICAL_JOYSTICK_RIGHT 10
-
-#define ACTION_INPUT_BUTTON 52
-#define ENCODER_INPUT_BUTTON 37
-#define LEFT_JOYSTICK_BUTTON 39
-#define RIGHT_JOYSTICK_BUTTON 41
-#define ENABLE_POT_BUTTON 35
-
-#define LCD_INPUT_BUTTON 0
-#define LCD_LIGHT_CONTROL 8
-#define SPEED_POT 1
-#define HORIZONTAL_POT 3
-#define VERTICAL_POT 2
-#define REFERENCE_INPUT_BUTTON 15
-
-
-#define POT 1
-
-#define HORIZONTAL_LED 26
-#define VERTICAL_LED 28
-
-#define MASTER_LED 31
-#define SLAVE_LED 33
-
+// Timers
 //
-// endregion
-
 elapsedMillis printTime;
 elapsedMillis lcdTime;
 elapsedMillis calcTime;
@@ -115,273 +70,8 @@ elapsedMillis moveMotorsTime;
 elapsedMillis logMotorsTime;
 elapsedMillis oledRefreshTime;
 elapsedMillis androidRefreshTime;
-
 elapsedMillis monitorEncoderTimer;
 elapsedMillis accelerometerTimer;
-
-int horizontalBlinkOnTime = 10;
-int horizontalBlinkOffTime = 1000;
-int horizontalBlinkState = 0; // 0 OFF, 1 ON
-int verticalBlinkOnTime = 10;
-int verticalBlinkOffTime = 1000;
-int verticalBlinkState = 0; // 0 OFF, 1 ON
-
-// region Menu modes
-//
-#define MODE_MENU 0 
-#define MODE_REPORT 1
-#define MODE_MOVE_MENU 2
-#define MODE_CALIBRATING 3
-#define MODE_FIND 4
-#define MODE_AZ_ALT 5
-#define MODE_MOVE_COORDINATES 7
-#define MODE_MOVE_MOTOR 8
-#define MODE_CALIBRATE_MOVING 10
-#define MODE_CALIBRATE_STAR_COMPLETE 11
-#define MODE_CALIBRATION_COMPLETE 12
-#define MODE_MEASURING_BACKSLASH 13
-//
-// endregion
-
-// region Menu variablesþ
-//
-#define RIGHT 1
-#define UP 2
-#define DOWN 3
-#define LEFT 4
-#define SELECT 5
-#define FLIP_LEFT 6
-#define FLIP_RIGHT 7
-
-int selectButtonAction1 = -2;
-int selectButtonAction2 = -2;
-int selectActionIndex = 0;
-int lastSelectButtonAction = -1;
-
-int selectedChoice = 0;
-int maxChoice = 0;
-
-int newHorizontalValue;
-int newVerticalValue;
-
-int activeMode = MODE_MENU;
-
-//int lcdStarIndex = 0;
-int lcdSelectedStar = -1;
-
-int potHorizontal = 0;
-int potVertical = 0;
-// horizontal right and vertical left are ignored
-int potHorizontalJoystickLeft = 0;
-int potVerticalJoystickRight = 0;
-int androidHorizontalSpeed = 0;
-int androidVerticalSpeed = 0;
-int ledPower = 0;
-int ledIncrement = 3;
-int leftJoystickDirection = -1;
-int rightJoystickDirection = -1;
-int MAX_LEFT_JOYSTICK_SPEED = 10;
-int leftJoystickSpeed = 5;
-int MAX_RIGHT_JOYSTICK_SPEED = 10;
-int rightJoystickSpeed = 5;
-
-long lastKnobValue = 0;
-
-int lastJoystickNavigationValue = 0;
-//
-// endregion
-
-// region Target/ calibrating data declaration
-//
-typedef struct {
-  String name;
-  double ra;
-  double dec;
-  int special;
-} target;
-
-typedef struct {
-  double ra;
-  double dec;
-  long horizontalMotorPosition;
-  long verticalMotorPosition;
-  long horizontalEncoderPosition;
-  long verticalEncoderPosition;
-  int currentYear;
-  int currentMonth;
-  int currentDay;
-  int currentHour;
-  int currentMinute;
-  int currentSecond;
-} calibrationPoint;
-
-target sirius = {"Sirius", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 46, 13), Ephemeris::hoursMinutesSecondsToFloatingHours(-16, -45, -7.3), -1};
-target canopus = {"Canopus", Ephemeris::hoursMinutesSecondsToFloatingHours(6, 24, 29.6), Ephemeris::hoursMinutesSecondsToFloatingHours(-52, -42, -45.3), -1};
-target alphaCentauri = {"Alpha Centauri", Ephemeris::hoursMinutesSecondsToFloatingHours(14, 41, 16.7), Ephemeris::hoursMinutesSecondsToFloatingHours(-60, -55, -59.1), -1};
-target becrux = {"Becrux", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 47, 44), Ephemeris::hoursMinutesSecondsToFloatingHours(-59, -41, -19), -1};
-target acrux = {"Acrux", Ephemeris::hoursMinutesSecondsToFloatingHours(12, 26, 35.89), Ephemeris::hoursMinutesSecondsToFloatingHours(-63, -5, -56.7343), -1};
-target rigel = {"Rigel", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 14, 32.27210), Ephemeris::hoursMinutesSecondsToFloatingHours(-8, -12, -5.8981), -1};
-target hadar = {"Hadar", Ephemeris::hoursMinutesSecondsToFloatingHours(14, 3, 49.40535), Ephemeris::hoursMinutesSecondsToFloatingHours(-60, -22, -22.9266), -1};
-target betelgeuse = {"Betelgeuse", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 56, 28.5), Ephemeris::hoursMinutesSecondsToFloatingHours(7, 24, 38), -1};
-target procyon = {"Procyon", Ephemeris::hoursMinutesSecondsToFloatingHours(7, 40, 34.2), Ephemeris::hoursMinutesSecondsToFloatingHours(5, 9, 42.4), -1};
-target pollux = {"Pollux", Ephemeris::hoursMinutesSecondsToFloatingHours(7, 46, 47.9), Ephemeris::hoursMinutesSecondsToFloatingHours(27, 58, 6.7), -1};
-target spica = {"Spica", Ephemeris::hoursMinutesSecondsToFloatingHours(13, 26, 29.2), Ephemeris::hoursMinutesSecondsToFloatingHours(-11, -17, -22.4), -1};
-target capella = {"Capella", Ephemeris::hoursMinutesSecondsToFloatingHours(5, 18, 27.8), Ephemeris::hoursMinutesSecondsToFloatingHours(46, 1, 27.4), -1};
-target achernar = {"Achernar", Ephemeris::hoursMinutesSecondsToFloatingHours(1, 38, 35.2), Ephemeris::hoursMinutesSecondsToFloatingHours(-57, -6, -57.3), -1};
-target antares = {"Antares", Ephemeris::hoursMinutesSecondsToFloatingHours(16, 30, 54.1), Ephemeris::hoursMinutesSecondsToFloatingHours(-26, -29, -9.3), -1};
-// target altair = {"Altair", Ephemeris::hoursMinutesSecondsToFloatingHours(19, 50, 46.99855), Ephemeris::hoursMinutesSecondsToFloatingHours(8, 52, 5.9563), -1};
-// target polaris = {"Polaris", Ephemeris::hoursMinutesSecondsToFloatingHours(2, 31, 49.09), Ephemeris::hoursMinutesSecondsToFloatingHours(89, 15, 50.8), -1};
-target sigmaOctantis = {"Sigma Octantis", Ephemeris::hoursMinutesSecondsToFloatingHours(21, 8, 46.86357), Ephemeris::hoursMinutesSecondsToFloatingHours(-88, -57, -23.3983), -1};
-target specialMoon = { "Moon", 0, 0, EarthsMoon};
-target specialSaturn = { "Saturn", 0, 0, Saturn};
-target specialJupiter = { "Jupiter", 0, 0, Jupiter};
-target specialMars = { "Mars", 0, 0, Mars};
-target specialVenus = { "Venus", 0, 0, Venus};
-target specialSun = { "Sun", 0, 0, Sun};
-// target arcturus = {"Arcturus", hourMinArcSecToDouble(14,15, 39.7), hourMinArcSecToDouble(19, 10, 57)};
-
-target targets[] = { sirius, canopus, alphaCentauri, becrux, acrux, rigel, hadar, betelgeuse, procyon, pollux, capella, achernar, antares,
-  sigmaOctantis, specialMoon, specialSaturn, specialJupiter, specialMars, specialVenus, specialSun };
-target* calibratingTarget;
-
-int calibratingStarIndex = 0;
-calibrationPoint calibrationPoint0;
-calibrationPoint calibrationPoint1;
-int calibrated = 0;
-//
-// endregion
-
-// region Hardcoded GPS lat/ lon
-// 
-float gpsLatitude = -22.660029;
-float gpsLongitude = -46.939291;
-
-//
-// endregion
-
-// region Where we are pointing at, where we are
-//
-EquatorialCoordinates equatorialCoordinates;
-HorizontalCoordinates horizontalCoordinates;
-
-double ra = 10.0;
-double dec = -20.0;
-double julianDate;
-double timeOfDay;
-double gstTime;
-double lst;
-double alt;
-double azm;
-
-double currentMotorAlt;
-double currentMotorAzm;
-double currentEncoderAlt;
-double currentEncoderAzm;
-
-double lastStarRa = -999;
-double lastStarDec = -999;
-
-int horizontalSpeed = 0;
-int verticalSpeed = 0;
-float verticalMotorSpeed = 0.0;
-float horizontalMotorSpeed = 0.0;
-float horizontalCoordinateSpeed = 0;
-float verticalCoordinateSpeed = 0;
-
-int loopsPerSec = 0;
-int rtcInitialized = 0;
-
-//
-// endregion
-
-// region Date/ time variables
-//
-int currentYear;
-int currentMonth;
-int currentDay;
-int currentHour;
-int currentMinute;
-int currentSecond;
-int currentMs;
-long currentSecOfDay;
-//
-// endregion
-
-// region Calibration info
-// 
-double alt1;
-double alt2;
-double altMotor1;
-double altMotor2;
-double altEncoder1;
-double altEncoder2;
-double azm1;
-double azm2;
-double azmMotor1;
-double azmMotor2;
-double azmEncoder1;
-double azmEncoder2;
-long newMotorVerticalPos;
-long newMotorHorizontalPos;
-long newEncoderVerticalPos;
-long newEncoderHorizontalPos;
-//
-// endregion
-
-double calcLst;
-double calcRa;
-double sinAlt;
-double cosA;
-double a;
-double sinHa;
-
-int special = -1;
-
-int slaveMode = 0;
-
-JsonDocument bluetoothDoc;
-DeserializationError lastDeserializationStatus;
-
-SolarSystemObject solarSystemObject;
-
-char serialBuffer[128];
-int serialBufferPointer = 0;
-
-long horizontalEncoderPosition = 0;
-long verticalEncoderPosition = 0;
-
-long horizontalEncoderPositionDelta = 0;
-long verticalEncoderPositionDelta = 0;
-long horizontalMotorPositionDelta = 0;
-long verticalMotorPositionDelta = 0;
-long lastHorizontalMotorPosition = 0;
-long lastVerticalMotorPosition = 0;
-
-long horizontalBackslash = 0;
-long verticalBackslash = 0;
-int horizontalBackslashDirection = 0;
-int verticalBackslashDirection = 0;
-int horizontalBackslashMoves = 0;
-int verticalBackslashMoves = 0;
-long lastHorizontalEncoderBackslashPosition = 0;
-long lastVerticalEncoderBackslashPosition = 0;
-long lastHorizontalEncoderPosition = 0;
-long lastVerticalEncoderPosition = 0;
-long lastHorizontalBackslashEncoderPosition = 0;
-long lastVerticalBackslashEncoderPosition = 0;
-int lastHorizontalEncoderMoveDirection = 0;
-int lastVerticalEncoderMoveDirection = 0;
-int horizontalBackslashFinished = 0;
-int verticalBackslashFinished = 0;
-
-int horizontalBackSlashing = 0;
-int verticalBackSlashing = 0;
-long horizontalEncoderBackslashLeft = 0;
-long verticalEncoderBackslashLeft = 0;
-long horizontalStandardBackslash = 300000;
-long verticalStandardBackslash = 10000;
-long horizontalMotorStartBackslash = 0;  
-long verticalMotorStartBackslash = 0;  
 
 void setup() {
   Wire.begin(); // Inicia a comunicação I2C
@@ -419,16 +109,16 @@ void setup() {
   verticalMotor = engine.stepperConnectToPin(VERTICAL_STEPPER_STEP_PIN);
   if (verticalMotor) {
     verticalMotor->setDirectionPin(VERTICAL_STEPPER_DIR_PIN);
-    verticalMotor->setAcceleration(MAX_VERTICAL_ACCELERATION);
+    verticalMotor->setAcceleration(MAX_ACCELERATION);
     verticalMotor->setAutoEnable(true);
   }
   horizontalMotor = engine.stepperConnectToPin(HORIZONTAL_STEPPER_STEP_PIN);
   if (horizontalMotor) {
     horizontalMotor->setDirectionPin(HORIZONTAL_STEPPER_DIR_PIN);
-    horizontalMotor->setAcceleration(MAX_HORIZONTAL_ACCELERATION);
+    horizontalMotor->setAcceleration(MAX_ACCELERATION);
     horizontalMotor->setAutoEnable(true);
   }
-
+  
   // Bluetooth  
   Serial1.begin(9600);
 
@@ -437,6 +127,9 @@ void setup() {
   // Encoder #1
   Serial3.begin(57600);
   
+  verticalMagic = new MotorWithEncoder(&Serial2, verticalMotor, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
+  horizontalMagic = new MotorWithEncoder(&Serial3, horizontalMotor, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
+
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);
   pinMode(LEFT_JOYSTICK_BUTTON, INPUT_PULLUP);
@@ -488,9 +181,19 @@ void loop() {
     lcd.print("RTC FAILURE     ");
 
     delay(500);
+    return;
   }
   //
   ///////////////////////////////////////////////////////////////////////////
+
+  loopsPerSec++;
+
+  registerButton();
+
+  if(Serial1.available()) {
+    bluetoothSerialAvailable();
+  }
+    
 
   ///////////////////////////////////////////////////////////////////////////
   // Accelerometer
@@ -517,209 +220,11 @@ void loop() {
   }
 
   if (monitorEncoderTimer > 50) {
-    while(Serial2.available())
-    { 
-      int nextChar = Serial2.read();
-      if (nextChar != -1) { 
-        // Serial.print("Available encoder: ");
-        // Serial.println(nextChar);
-        if ((nextChar & 0x10) == 0x10) {
-          if (verticalEncoderBufferPointer >= 7) {
-            // encoderBufferPointer++; // To do the correct math
-            long n8 = nextChar;
-            long n7 = verticalEncoderBuffer[verticalEncoderBufferPointer - 1];
-            long n6 = verticalEncoderBuffer[verticalEncoderBufferPointer - 2];
-            long n5 = verticalEncoderBuffer[verticalEncoderBufferPointer - 3];
-            long n4 = verticalEncoderBuffer[verticalEncoderBufferPointer - 4];
-            long n3 = verticalEncoderBuffer[verticalEncoderBufferPointer - 5];
-            long n2 = verticalEncoderBuffer[verticalEncoderBufferPointer - 6];
-            long n1 = verticalEncoderBuffer[verticalEncoderBufferPointer - 7];
-            int c1 = (n1 & 0x80) == 0x80;
-            int c2 = (n2 & 0x40) == 0x40;
-            int c3 = (n3 & 0x40) == 0x40;
-            int c4 = (n4 & 0x40) == 0x40;
-            int c5 = (n5 & 0x40) == 0x40;
-            int c6 = (n6 & 0x40) == 0x40;
-            int c7 = (n7 & 0x20) == 0x20;
-            int c8 = (n8 & 0x10) == 0x10;
-            long sum = 
-              (((n1 & 0x0F) << 28) & 0xF0000000L) + 
-              (((n2 & 0x0F) << 24) & 0x0F000000L) + 
-              (((n3 & 0x0F) << 20) & 0x00F00000L) + 
-              (((n4 & 0x0F) << 16) & 0x000F0000L) + 
-              (((n5 & 0x0F) << 12) & 0x0000F000L) + 
-              (((n6 & 0x0F) << 8) & 0x00000F00L) + 
-              (((n7 & 0x0F) << 4) & 0x000000F0L) + 
-              ((n8 & 0x0F) & 0x0000000FL);
-
-            // Ensures noise is filtered out
-            if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              setVerticalEncoderPosition(sum);
-            }
-            // Serial.print("Encoder bytesc: ");
-            // Serial.print(n1);
-            // Serial.print(".");
-            // Serial.print(c1);
-            // Serial.print(", ");
-            // Serial.print(n2);
-            // Serial.print(".");
-            // Serial.print(c2);
-            // Serial.print(", ");
-            // Serial.print(n3);
-            // Serial.print(".");
-            // Serial.print(c3);
-            // Serial.print(", ");
-            // Serial.print(n4);
-            // Serial.print(".");
-            // Serial.print(c4);
-            // Serial.print(", ");
-            // Serial.print(n5);
-            // Serial.print(".");
-            // Serial.print(c5);
-            // Serial.print(", ");
-            // Serial.print(n6);
-            // Serial.print(".");
-            // Serial.print(c6);
-            // Serial.print(", ");
-            // Serial.print(n7);
-            // Serial.print(".");
-            // Serial.print(c7);
-            // Serial.print(", ");
-            // Serial.print(n8);
-            // Serial.print(".");
-            // Serial.print(c8);
-            // Serial.print(", ");
-            // Serial.print(sum);
-            // Serial.print(", ");
-            // Serial.print(encoderPosition);
-            // Serial.println();
-          }
-          verticalEncoderBufferPointer = 0;
-        } else if(verticalEncoderBufferPointer < sizeof(verticalEncoderBuffer) -1) {
-          verticalEncoderBuffer[verticalEncoderBufferPointer] = nextChar;
-          verticalEncoderBufferPointer++;
-        } else {
-          verticalEncoderBufferPointer = 0;
-        }
-      }
-    }
-
-    while(Serial3.available())
-    { 
-      int nextChar = Serial3.read();
-      if (nextChar != -1) { 
-        // Serial.print("Available encoder: ");
-        // Serial.println(nextChar);
-        if ((nextChar & 0x10) == 0x10) {
-          if (horizontalEncoderBufferPointer >= 7) {
-            // encoderBufferPointer++; // To do the correct math
-            long n8 = nextChar;
-            long n7 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 1];
-            long n6 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 2];
-            long n5 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 3];
-            long n4 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 4];
-            long n3 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 5];
-            long n2 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 6];
-            long n1 = horizontalEncoderBuffer[horizontalEncoderBufferPointer - 7];
-            int c1 = (n1 & 0x80) == 0x80;
-            int c2 = (n2 & 0x40) == 0x40;
-            int c3 = (n3 & 0x40) == 0x40;
-            int c4 = (n4 & 0x40) == 0x40;
-            int c5 = (n5 & 0x40) == 0x40;
-            int c6 = (n6 & 0x40) == 0x40;
-            int c7 = (n7 & 0x20) == 0x20;
-            int c8 = (n8 & 0x10) == 0x10;
-            long sum = 
-              (((n1 & 0x0F) << 28) & 0xF0000000L) + 
-              (((n2 & 0x0F) << 24) & 0x0F000000L) + 
-              (((n3 & 0x0F) << 20) & 0x00F00000L) + 
-              (((n4 & 0x0F) << 16) & 0x000F0000L) + 
-              (((n5 & 0x0F) << 12) & 0x0000F000L) + 
-              (((n6 & 0x0F) << 8) & 0x00000F00L) + 
-              (((n7 & 0x0F) << 4) & 0x000000F0L) + 
-              ((n8 & 0x0F) & 0x0000000FL);
-
-            // Ensures noise is filtered out
-            if (c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8) {
-              setHorizontalEncoderPosition(sum);
-            }
-            // Serial.print("Encoder bytesc: ");
-            // Serial.print(n1);
-            // Serial.print(".");
-            // Serial.print(c1);
-            // Serial.print(", ");
-            // Serial.print(n2);
-            // Serial.print(".");
-            // Serial.print(c2);
-            // Serial.print(", ");
-            // Serial.print(n3);
-            // Serial.print(".");
-            // Serial.print(c3);
-            // Serial.print(", ");
-            // Serial.print(n4);
-            // Serial.print(".");
-            // Serial.print(c4);
-            // Serial.print(", ");
-            // Serial.print(n5);
-            // Serial.print(".");
-            // Serial.print(c5);
-            // Serial.print(", ");
-            // Serial.print(n6);
-            // Serial.print(".");
-            // Serial.print(c6);
-            // Serial.print(", ");
-            // Serial.print(n7);
-            // Serial.print(".");
-            // Serial.print(c7);
-            // Serial.print(", ");
-            // Serial.print(n8);
-            // Serial.print(".");
-            // Serial.print(c8);
-            // Serial.print(", ");
-            // Serial.print(sum);
-            // Serial.print(", ");
-            // Serial.print(encoderPosition);
-            // Serial.println();
-          }
-          horizontalEncoderBufferPointer = 0;
-        } else if(horizontalEncoderBufferPointer < sizeof(horizontalEncoderBuffer) -1) {
-          horizontalEncoderBuffer[horizontalEncoderBufferPointer] = nextChar;
-          horizontalEncoderBufferPointer++;
-        } else {
-          horizontalEncoderBufferPointer = 0;
-        }
-      }
-    }
-
+    verticalMagic->updateEncoderFromSerial();
+    horizontalMagic->updateEncoderFromSerial();
     monitorEncoderTimer = 0;
   }
  
-   if(Serial1.available()) {
-     bluetoothSerialAvailable();
-   }
-  //   char nextChar = Serial1.read();
-  //   if (nextChar != -1) { 
-  //     if (nextChar == '\n') {
-  //       if (serialBufferPointer > 0) {
-  //         serialBuffer[serialBufferPointer] = 0;
-  //         Serial.print("Received serial coordinates: ");
-  //         Serial.write(serialBuffer);
-  //         Serial.println();
-        
-  //         processInput(serialBuffer);
-  //       }
-  //       serialBufferPointer = 0;
-  //     } else if(serialBufferPointer < sizeof(serialBuffer) -1) {
-  //       serialBuffer[serialBufferPointer] = nextChar;
-  //       serialBufferPointer++;
-  //     }    
-  //   }
-  // }
-    
-  loopsPerSec++;
-
-  registerButton();
-
   if (calcTime > 25) {
     if (!slaveMode) {
       if(digitalRead(ENABLE_POT_BUTTON) == 1) {
@@ -740,14 +245,14 @@ void loop() {
       newVerticalValue = 0;
       lastJoystickNavigationValue = 0;
     }
-
+  
     //
     calculateEverything();
    
     calcTime = 0;
   }
   
-  if (moveMotors > 100) {
+  if (moveMotorsTime > 100) {
     moveMotors();
 
     moveMotorsTime = 0;
@@ -787,37 +292,6 @@ void loop() {
     refreshOled();
     
     oledRefreshTime = 0;
-  }
-
-//   if (logMotorsTime > 100) {
-//     float maxHorizontalPercentage = mapDouble(abs(horizontalMotor->getCurrentSpeedInUs()), 0, horizontalMotor->getMaxSpeedInUs(), 0, 100.0);
-//     float maxVerticalPercentage = mapDouble(abs(verticalMotor->getCurrentSpeedInUs()), 0, verticalMotor->getMaxSpeedInUs(), 0, 100.0);
-// 
-//     logMotorsTime = 0;
-//   }
-}
-
-void setHorizontalEncoderPosition(long sum) {
-  horizontalEncoderPosition = sum;
-  if (horizontalEncoderPosition != lastHorizontalEncoderPosition) {
-    if (horizontalEncoderPosition < lastHorizontalEncoderPosition) {
-      lastHorizontalEncoderMoveDirection = -1; 
-    } else {
-      lastHorizontalEncoderMoveDirection = +1; 
-    }
-    lastHorizontalEncoderPosition = horizontalEncoderPosition;
-  }
-}
-
-void setVerticalEncoderPosition(long sum) {
-  verticalEncoderPosition = sum;
-  if (verticalEncoderPosition != lastVerticalEncoderPosition) {
-    if (verticalEncoderPosition < lastVerticalEncoderPosition) {
-      lastVerticalEncoderMoveDirection = -1; 
-    } else {
-      lastVerticalEncoderMoveDirection = +1; 
-    }
-    lastVerticalEncoderPosition = verticalEncoderPosition;
   }
 }
 
@@ -871,10 +345,10 @@ void storeCalibrateCoordinates() {
   usePoint->currentHour = currentHour;
   usePoint->currentMinute = currentMinute;
   usePoint->currentSecond = currentSecond;
-  usePoint->horizontalMotorPosition = readHorizontalMotorPosition(); 
-  usePoint->verticalMotorPosition = readVerticalMotorPosition(); 
-  usePoint->horizontalEncoderPosition = readHorizontalEncoderPosition(); 
-  usePoint->verticalEncoderPosition = readVerticalEncoderPosition(); 
+  usePoint->horizontalMotorPosition = horizontalMagic->readMotorPosition(); 
+  usePoint->verticalMotorPosition = verticalMagic->readMotorPosition(); 
+  usePoint->horizontalEncoderPosition = horizontalMagic->readEncoderPosition(); 
+  usePoint->verticalEncoderPosition = verticalMagic->readEncoderPosition(); 
 }
 
 void prepareStarCoordinates() {
@@ -917,6 +391,9 @@ void storeCalibrationData() {
   altEncoder2 = calibrationPoint1.verticalEncoderPosition;
   azmEncoder1 = calibrationPoint0.horizontalEncoderPosition;
   azmEncoder2 = calibrationPoint1.horizontalEncoderPosition;
+  
+  horizontalMagic->setCalibrationPoints(azm1, azm2, azmEncoder1, azmEncoder2, azmMotor1, azmMotor2);
+  verticalMagic->setCalibrationPoints(alt1, alt2, altEncoder1, altEncoder2, altMotor1, altMotor2);
 
   // So that it doesn't move when the last point moves
   ra = calibrationPoint1.ra;
@@ -953,3 +430,17 @@ int readVerticalControl() {
   }
 }
 
+//
+// Global functions
+//
+void prepareToMoveWithCalibration() {
+  horizontalMagic->prepareToMoveWithCalibration();
+  verticalMagic->prepareToMoveWithCalibration();
+}
+
+void moveMotors() {
+
+}
+
+void measureBackslash() {
+}

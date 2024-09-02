@@ -114,13 +114,3 @@
 //   azm = az;
 // }
 
-double mapDouble(double x, double in_min, double in_max, double out_min, double out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-double withinBounds(double value, double min, double max) {
-  if (value < min) return min;
-  else if (value > max) return max;
-  else return value;
-}
