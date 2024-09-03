@@ -214,8 +214,6 @@ extern double lastStarDec;
 
 extern int horizontalSpeed;
 extern int verticalSpeed;
-extern float verticalMotorSpeed;
-extern float horizontalMotorSpeed;
 extern float horizontalCoordinateSpeed;
 extern float verticalCoordinateSpeed;
 

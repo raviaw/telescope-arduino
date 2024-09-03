@@ -127,7 +127,9 @@ void setup() {
   // Encoder #1
   Serial3.begin(57600);
   
+  //
   verticalMagic = new MotorWithEncoder(&Serial2, verticalMotor, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
+  //
   horizontalMagic = new MotorWithEncoder(&Serial3, horizontalMotor, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
 
   pinMode(ACTION_INPUT_BUTTON, INPUT);
@@ -245,10 +247,10 @@ void loop() {
       newVerticalValue = 0;
       lastJoystickNavigationValue = 0;
     }
-  
+
     //
     calculateEverything();
-   
+
     calcTime = 0;
   }
   
@@ -298,6 +300,11 @@ void loop() {
 void calculateEverything() {
   //
   calculateTime();
+  
+  if (calibrated) {
+    currentMotorAlt = mapDouble(verticalMagic->readMotorPosition(), altMotor1, altMotor2, alt1, alt2);
+    currentMotorAzm = mapDouble(horizontalMagic->readMotorPosition(), azmMotor1, azmMotor2, azm1, azm2);
+  }
   
   if (special != -1) {
     solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime(special, 
@@ -439,8 +446,13 @@ void prepareToMoveWithCalibration() {
 }
 
 void moveMotors() {
-
+  horizontalSpeed = readHorizontalControl();
+  verticalSpeed = readVerticalControl();
+  horizontalMagic->moveMotors(azm, horizontalSpeed);
+  verticalMagic->moveMotors(alt, verticalSpeed);
 }
 
 void measureBackslash() {
+  horizontalMagic->calculateBackslash();
+  verticalMagic->calculateBackslash();
 }

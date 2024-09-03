@@ -125,8 +125,6 @@ double lastStarDec = -999;
 
 int horizontalSpeed = 0;
 int verticalSpeed = 0;
-float verticalMotorSpeed = 0.0;
-float horizontalMotorSpeed = 0.0;
 float horizontalCoordinateSpeed = 0;
 float verticalCoordinateSpeed = 0;
 

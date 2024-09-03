@@ -38,9 +38,6 @@ void refreshOled() {
     }
   }
   if (calibrated) {
-   currentMotorAlt = mapDouble(verticalMagic->readMotorPosition(), altMotor1, altMotor2, alt1, alt2);
-   currentMotorAzm = mapDouble(horizontalMagic->readMotorPosition(), azmMotor1, azmMotor2, azm1, azm2);
-
     if (abs(currentMotorAzm - azm) > 0.01) {
       azimuthLineLocation = mapDouble(currentMotorAzm, 0, 360, 0, SCREEN_WIDTH);
       for (int pixelLocation = 16 + (currentSecOfDay % 5); pixelLocation < SCREEN_HEIGHT; pixelLocation += 5) {

@@ -91,7 +91,20 @@ void MotorWithEncoder::setCalibrationPoints(double trackPoint1, double trackPoin
 }
 
 void MotorWithEncoder::moveMotors(double trackPoint, double speed) {
-  if (activeMode == MODE_MEASURING_BACKSLASH) {
+//  Serial.print("Move motors, motor status: ");
+//  Serial.print(_motorStatus);
+//  Serial.print(", track point: ");
+//  Serial.print(trackPoint);
+//  Serial.print(", speed: ");
+//  Serial.print(speed);
+//  Serial.print(", positive backslash: ");
+//  Serial.print(_positiveBackslash);
+//  Serial.print(", negative backslash: ");
+//  Serial.print(_negativeBackslash);
+//  Serial.println();
+
+  if (_motorStatus == MOTOR_STATUS_BACKSLASH) { 
+   keepMovingBackslash();
     // void moveMeasuringBackslash(FastAccelStepper *motor, long encoderPosition, int& backslashFinished, int& backslashMoveCount, int& backslashMoveDirection, int& encoderMoveDirection, long& backlashValue) {
 //    if (!horizontalBackslashFinished) {
 //      moveMeasuringBackslash(
@@ -132,9 +145,6 @@ void MotorWithEncoder::moveMotors(double trackPoint, double speed) {
     // moveMotorsTracking();
     moveMotorsTrackingWithEncoder(trackPoint);
   } else {
-    currentMotorAlt = alt;
-    currentMotorAzm = azm;
-
     if(activeMode == MODE_MOVE_MOTOR || activeMode == MODE_CALIBRATE_MOVING) {
       _motorSpeed = map(speed, -100, +100, -1 * MAX_SPEED, MAX_SPEED);
     } else {
@@ -359,3 +369,151 @@ void MotorWithEncoder::setEncoderPosition(long newEncoderPosition) {
   }
 }
 
+void MotorWithEncoder::calculateBackslash() {
+  Serial.println("Wants to calculate backslash");
+  
+  _motorStatus = MOTOR_STATUS_BACKSLASH;
+  _backslashEncoderPosition0 = readEncoderPosition(); 
+  _backslashMotorPosition0 = readMotorPosition();
+  _backslashStep = 0;
+  if (_encoderDirection <= 0) {
+    _backslashDirection = 1;
+  } else {
+    _backslashDirection = -1;
+  }
+}
+
+void MotorWithEncoder::keepMovingBackslash() {
+  if (_motorStatus == MOTOR_STATUS_FREE) {
+    return;
+  }
+  // This is very important
+  updateEncoderFromSerial();
+  
+  long compareEncoderValue;
+  long compareMotorValue;
+  if (_backslashStep == 0) {
+    compareEncoderValue = _backslashEncoderPosition0;
+    compareMotorValue = _backslashMotorPosition0;
+  } else if (_backslashStep == 1) {
+    compareEncoderValue = _backslashEncoderPosition1;
+    compareMotorValue = _backslashMotorPosition1;
+  } else if (_backslashStep == 2) {
+    compareEncoderValue = _backslashEncoderPosition2;
+    compareMotorValue = _backslashMotorPosition2;
+  } else if (_backslashStep == 3) {
+    compareEncoderValue = _backslashEncoderPosition3;
+    compareMotorValue = _backslashMotorPosition3;
+  } else {
+    _motorStatus = MOTOR_STATUS_FREE;
+  }
+  long currentEncoderPosition = readEncoderPosition();
+  long currentMotorPosition = readMotorPosition();
+  long diff = abs(currentEncoderPosition - compareEncoderValue);
+  
+  if (diff > 20) {
+    Serial.print("Diff is ");
+    Serial.print(diff);
+    Serial.print(", current encoder position: ");
+    Serial.print(currentEncoderPosition);
+    Serial.print(", current motor position: ");
+    Serial.print(currentMotorPosition);
+    Serial.print(", compare encoder value: ");
+    Serial.print(compareEncoderValue);
+    Serial.print(", compare motor value: ");
+    Serial.print(compareMotorValue);
+    Serial.print(", backslash step: ");
+    Serial.print(_backslashStep);
+    Serial.println(", and motor stops");
+    
+    _motor->stopMove();
+    delay(2000); // Let the motor stop
+    
+    // This is very important
+    updateEncoderFromSerial();
+    
+    // Increase step - was 0 is now 1
+    _backslashStep++;
+
+    //
+    // Read it again with everything stopped
+    //
+    currentEncoderPosition = readEncoderPosition();
+    currentMotorPosition = readMotorPosition();
+    
+    Serial.print("After stopping");
+    Serial.print(", current encoder position: ");
+    Serial.print(currentEncoderPosition);
+    Serial.print(", current motor position: ");
+    Serial.print(currentMotorPosition);
+    Serial.print(", step: ");
+    Serial.print(_backslashStep);
+    Serial.println();
+
+    long encoderDiff = 0;
+    long motorDiff = 0;
+
+    if (_backslashStep == 1) {
+      _backslashEncoderPosition1 = currentEncoderPosition;
+      _backslashMotorPosition1 = currentMotorPosition;
+      encoderDiff = abs(currentEncoderPosition - _backslashEncoderPosition0);
+      motorDiff = abs(currentMotorPosition - _backslashMotorPosition0);
+    } else if (_backslashStep == 2) {
+      _backslashEncoderPosition2 = currentEncoderPosition;
+      _backslashMotorPosition2 = currentMotorPosition;
+      encoderDiff = abs(currentEncoderPosition - _backslashEncoderPosition1);
+      motorDiff = abs(currentMotorPosition - _backslashMotorPosition1);
+    } else if (_backslashStep == 3) {
+      _backslashEncoderPosition3 = currentEncoderPosition;
+      _backslashMotorPosition3 = currentMotorPosition;
+      encoderDiff = abs(currentEncoderPosition - _backslashEncoderPosition2);
+      motorDiff = abs(currentMotorPosition - _backslashMotorPosition2);
+    } else if (_backslashStep == 4) {
+      encoderDiff = abs(currentEncoderPosition - _backslashEncoderPosition3);
+      motorDiff = abs(currentMotorPosition - _backslashMotorPosition3);
+    }
+    
+    Serial.print("Backslash direction ");
+    Serial.print(_backslashDirection);
+    Serial.print(", step: ");
+    Serial.print(_backslashStep);
+    Serial.print(", encoderDiff: ");
+    Serial.print(encoderDiff);
+    Serial.print(", currentEncoderPosition: ");
+    Serial.print(currentEncoderPosition);
+    Serial.print(", currentMotorPosition: ");
+    Serial.print(currentMotorPosition);
+    Serial.print(", motorDiff: ");
+    Serial.print(motorDiff);
+    Serial.println();
+    
+    if (_backslashDirection > 0) {
+      Serial.print("Calculating, encoder diff: ");
+      Serial.print(encoderDiff);
+      Serial.print(", positive backslash: ");
+      Serial.println(_positiveBackslash);
+      if (motorDiff > _positiveBackslash) {
+        _positiveBackslash = motorDiff;
+      }
+    } else { 
+      Serial.print("Calculating, encoder diff: ");
+      Serial.print(encoderDiff);
+      Serial.print(", negative backslash: ");
+      Serial.println(_negativeBackslash);
+      if (motorDiff > _negativeBackslash) {
+        _negativeBackslash = motorDiff;
+      }
+    }
+    
+    _backslashDirection = _backslashDirection * -1;
+  } else {
+    // Serial.println("Still moving");
+    _motor->setSpeedInHz(4000);
+    _motor->applySpeedAcceleration();
+    if (_backslashDirection > 0) {
+      _motor->runForward();
+    } else {
+      _motor->runBackward();
+    }
+  }
+}
