@@ -128,9 +128,11 @@ void setup() {
   Serial3.begin(57600);
   
   //
-  verticalMagic = new MotorWithEncoder(&Serial2, verticalMotor, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
+  verticalMagic = new MotorWithEncoder(&Serial2, verticalMotor, 1, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
+  verticalMagic->preloadBackslash(8500);
   //
-  horizontalMagic = new MotorWithEncoder(&Serial3, horizontalMotor, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
+  horizontalMagic = new MotorWithEncoder(&Serial3, horizontalMotor, 0, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
+  horizontalMagic->preloadBackslash(50000);
 
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);

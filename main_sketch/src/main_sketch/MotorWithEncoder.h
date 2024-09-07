@@ -4,11 +4,15 @@
 #include <FastAccelStepper.h>
 
 #define MOTOR_STATUS_FREE 0
-#define MOTOR_STATUS_BACKSLASH 1
+#define MOTOR_STATUS_CALC_BACKSLASH 1
+
+#define MOTOR_TRACK_STATUS_FORWARD 0
+// #define MOTOR_TRACK_STATUS_BACKSLASH 1
+#define MOTOR_TRACK_STATUS_BACKSLASH_RUNNING 2
 
 class MotorWithEncoder {
   public:
-    MotorWithEncoder(HardwareSerial* encoderSerialPort, FastAccelStepper* motor, int motorStepPin, int motorDirectionPin);
+    MotorWithEncoder(HardwareSerial* encoderSerialPort, FastAccelStepper* motor, int motorNumber, int motorStepPin, int motorDirectionPin);
     void updateEncoderFromSerial();
     long readMotorPosition();
     long readEncoderPosition();
@@ -16,6 +20,7 @@ class MotorWithEncoder {
     void moveMotors(double trackPoint, double speed);
     void prepareToMoveWithCalibration();
     void calculateBackslash();
+    void preloadBackslash(long backslash);
   private:
     void keepMovingBackslash();
     void moveMotorsTrackingWithEncoder(double trackPoint);
@@ -23,6 +28,7 @@ class MotorWithEncoder {
 
     HardwareSerial* _encoderSerialPort;
     FastAccelStepper* _motor;
+    int _motorNumber;
     int _motorStepPin;
     int _motorDirectionPin;
     byte _encoderBuffer[128];
@@ -38,9 +44,13 @@ class MotorWithEncoder {
     long _trackMotor2;
     double _coordinateSpeed;
     long _motorSpeed;
+    long _reverseMotorPosition;
+    long _reverseEncoderPosition;
+    long _backslashMotorPos;
     
     // Backslash
     int _motorStatus = MOTOR_STATUS_FREE;
+    int _motorTrackStatus = MOTOR_TRACK_STATUS_FORWARD; 
     int _backslashDirection = 0;
     int _backslashStep = 0;
     long _backslashEncoderPosition0;
@@ -53,6 +63,7 @@ class MotorWithEncoder {
     long _backslashMotorPosition3;
     long _negativeBackslash = 0;
     long _positiveBackslash = 0;
+    long _maxBackslash = 0;
 };
 
 #endif
