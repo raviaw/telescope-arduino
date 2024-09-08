@@ -109,7 +109,7 @@ void processMeasureBackslashCommand() {
 }
 
 void processTimeCommand() {
-  const char* time = bluetoothDoc["time"];
+  char* time = bluetoothDoc["time"];
   Serial.print(", parsing time: ");
   Serial.print(time);
   parseReceivedTimeString(time);

@@ -38,7 +38,7 @@ Clock and delta
 #include <Wire.h>
 #include <RTClib.h>
 #include <Encoder.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
@@ -120,18 +120,18 @@ void setup() {
   }
   
   // Bluetooth  
-  Serial1.begin(9600);
+  // Serial1.begin(9600);
 
   // Encoder #2
-  Serial2.begin(57600);
+  // Serial2.begin(57600);
   // Encoder #1
-  Serial3.begin(57600);
+  // Serial3.begin(57600);
   
   //
-  verticalMagic = new MotorWithEncoder(&Serial2, verticalMotor, 1, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
+  verticalMagic = new MotorWithEncoder(NULL, verticalMotor, 1, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
   verticalMagic->preloadBackslash(8300);
   //
-  horizontalMagic = new MotorWithEncoder(&Serial3, horizontalMotor, 0, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
+  horizontalMagic = new MotorWithEncoder(NULL, horizontalMotor, 0, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
   horizontalMagic->preloadBackslash(41000);
 
   pinMode(ACTION_INPUT_BUTTON, INPUT);
@@ -311,9 +311,10 @@ void calculateEverything() {
   }
   
   if (special != -1) {
-    solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime(special, 
-      currentDay, currentMonth, currentYear,
-      currentHour, currentMinute, currentSecond);
+    // TODO: Use proper object
+    // solarSystemObject = Ephemeris::solarSystemObjectAtDateAndTime(Sun, 
+    //   currentDay, currentMonth, currentYear,
+    //   currentHour, currentMinute, currentSecond);
       
     ra = solarSystemObject.equaCoordinates.ra;
     dec = solarSystemObject.equaCoordinates.dec;
