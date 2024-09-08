@@ -129,10 +129,10 @@ void setup() {
   
   //
   verticalMagic = new MotorWithEncoder(&Serial2, verticalMotor, 1, VERTICAL_STEPPER_STEP_PIN, VERTICAL_STEPPER_DIR_PIN);
-  verticalMagic->preloadBackslash(8500);
+  verticalMagic->preloadBackslash(8300);
   //
   horizontalMagic = new MotorWithEncoder(&Serial3, horizontalMotor, 0, HORIZONTAL_STEPPER_STEP_PIN, HORIZONTAL_STEPPER_DIR_PIN);
-  horizontalMagic->preloadBackslash(50000);
+  horizontalMagic->preloadBackslash(41000);
 
   pinMode(ACTION_INPUT_BUTTON, INPUT);
   pinMode(ENCODER_INPUT_BUTTON, INPUT_PULLUP);
@@ -144,6 +144,7 @@ void setup() {
   pinMode(MASTER_LED, OUTPUT);
   pinMode(SLAVE_LED, OUTPUT);
   pinMode(LCD_LIGHT_CONTROL, OUTPUT);
+  pinMode(LASER_PIN, OUTPUT);
 
   digitalWrite(MASTER_LED, HIGH);
   digitalWrite(SLAVE_LED, LOW);
@@ -223,9 +224,10 @@ void loop() {
     accelerometerTimer = 0;
   }
 
-  if (monitorEncoderTimer > 50) {
+  if (monitorEncoderTimer > 15) {
     verticalMagic->updateEncoderFromSerial();
     horizontalMagic->updateEncoderFromSerial();
+    
     monitorEncoderTimer = 0;
   }
  

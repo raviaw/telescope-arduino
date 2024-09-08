@@ -11,7 +11,7 @@ void setup() {
 }
 
 void loop() {
-  if (processTime > 50) {
+  if (processTime > 25) {
     long newValue = encoder.read();
     // newValue += newEncoderValue;
     // newValue = 1500;

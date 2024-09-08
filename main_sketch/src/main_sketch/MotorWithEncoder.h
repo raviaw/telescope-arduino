@@ -21,6 +21,7 @@ class MotorWithEncoder {
     void prepareToMoveWithCalibration();
     void calculateBackslash();
     void preloadBackslash(long backslash);
+    void calculateBackslashRanges();
   private:
     void keepMovingBackslash();
     void moveMotorsTrackingWithEncoder(double trackPoint);
@@ -47,6 +48,7 @@ class MotorWithEncoder {
     long _reverseMotorPosition;
     long _reverseEncoderPosition;
     long _backslashMotorPos;
+    int _cyclesWithSameDirection = 0;
     
     // Backslash
     int _motorStatus = MOTOR_STATUS_FREE;
@@ -64,6 +66,16 @@ class MotorWithEncoder {
     long _negativeBackslash = 0;
     long _positiveBackslash = 0;
     long _maxBackslash = 0;
+    
+    long _backslashThresholdHighest = 0;
+    long _backslashThresholdHigh = 0;
+    long _backslashThresholdMedium = 0;
+    long _backslashThresholdLow = 0;
+    
+    long _targetEncoderPosition = 0;
+    
+    long _previousDiff;
+    long _diff;
 };
 
 #endif

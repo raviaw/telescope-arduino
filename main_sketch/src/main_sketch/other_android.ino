@@ -84,6 +84,12 @@ void bluetoothSerialAvailable() {
   } else if (strcmp("move-done", command) == 0) {
     Serial.print("move-done");
     processMoveDoneCommand();
+  } else if (strcmp("laser-on", command) == 0) {
+    Serial.print("laser-on");
+    processLaserOnCommand();
+  } else if (strcmp("laser-off", command) == 0) {
+    Serial.print("laser-off");
+    processLaserOffCommand();
   } else if (strcmp("measure-backslash", command) == 0) {
     Serial.print("measure-backslash");
     processMeasureBackslashCommand();
@@ -239,4 +245,12 @@ void processMoveCommand() {
 void processMoveDoneCommand() {
   activeMode = MODE_MENU;
   slaveMode = 0;
+}
+
+void processLaserOnCommand() {
+  digitalWrite(LASER_PIN, HIGH);
+}
+
+void processLaserOffCommand() {
+  digitalWrite(LASER_PIN, LOW);
 }
