@@ -25,6 +25,7 @@ sections below differ, **these decisions win:**
 - **Driver ENABLE wired** per-axis (GPIO16/17) for idle auto-disable.
 - **2× MCP23017** (0x20 inputs, 0x21 outputs) — headroom instead of a maxed single chip.
 - **NVS calibration persistence is core scope** (no longer Phase 2).
+- **DS3231 RTC kept** (I²C 0x68, no extra pins) as the primary time source; phone/NTP sync it.
 - **Bluetooth telemetry fully implemented** (not just re-enabled), with clean JSON framing.
 
 ## 1. Goal
@@ -54,7 +55,7 @@ JSON protocol (command set + telemetry keys) is preserved exactly.
 | Main MCU | Arduino Mega 2560 | ESP-WROOM-32 |
 | Axis encoders | 2× Nano, each streams 8-byte packets @57600 over UART | Read directly via PCNT (`ESP32Encoder`) |
 | Bluetooth | HC-05 on `Serial1` @9600 | On-chip `BluetoothSerial` (SPP) |
-| Time | DS3231 RTC on I²C | Phone `time` command + `millis()` (NTP optional) |
+| Time | DS3231 RTC on I²C | DS3231 kept (0x68); phone `time` command / NTP sync it |
 | UARTs used | 4 (USB, BT, 2 encoders) | 1 (USB debug) |
 | Human I/O | Native pins (analog ladder keypad, pots, joysticks, LEDs, 16×2 LCD) | I²C expanders (ADS1115 + MCP23017); 2× OLED |
 
@@ -105,11 +106,13 @@ Nano's `Encoder.read()` behavior.
 | SSD1306 OLED #2 | 0x3D | Text menu/status (ported from LCD) |
 | MPU6050 IMU | 0x69 | Accelerometer (kept) |
 | ADS1115 | 0x48 | 4 analog: horiz pot, vert pot, left-joystick, right-joystick |
-| MCP23017 | 0x20 | 16 digital: keypad + control buttons + status LEDs + laser |
+| MCP23017 #1 | 0x20 | inputs: keypad + control buttons |
+| MCP23017 #2 | 0x21 | outputs: status LEDs + laser + spare |
+| DS3231 RTC | 0x68 | timekeeping (kept — no extra pins) |
 
 The 2nd OLED has an on-board address jumper (`0x78` / `0x7A` = 0x3C / 0x3D 7-bit); set it to
-**0x3D**, so both OLEDs share the one I²C bus — no second bus, no extra chip. DS3231 (formerly
-0x68) is removed.
+**0x3D**, so both OLEDs share the one I²C bus — no second bus, no extra chip. The DS3231 RTC
+stays on the bus at 0x68 (no extra pins).
 
 ### 4.4 Native ESP32 GPIO (timing-critical only)
 
@@ -158,11 +161,11 @@ Rules:
 
 ### 5.1 Build system / libraries (`platformio.ini`)
 - Board → `esp32dev`, platform `espressif32`, framework `arduino`.
-- **Remove:** `LiquidCrystal` (LCD dropped), `Encoder` (AVR), `RTClib` (RTC dropped),
-  `SoftwareSerial`, `SPI` (unused).
+- **Remove:** `LiquidCrystal` (LCD dropped), `Encoder` (AVR), `SoftwareSerial`, `SPI` (unused).
 - **Add:** `ESP32Encoder` (PCNT), `Adafruit_ADS1X15`, an MCP23017 library;
   `BluetoothSerial` is built into the ESP32 core.
-- **Keep:** `ArduinoJson`, `elapsedMillis`, `Adafruit_GFX`, `Adafruit_SSD1306`, `Ephemeris`.
+- **Keep:** `RTClib` (DS3231 kept), `ArduinoJson`, `elapsedMillis`, `Adafruit_GFX`,
+  `Adafruit_SSD1306`, `Ephemeris`.
 
 ### 5.2 File-by-file change map
 
@@ -172,11 +175,11 @@ Rules:
 | `MotorWithEncoder.*` | Biggest change. Drop `HardwareSerial*`, `updateEncoderFromSerial()`, the 8-byte bit-decoder, `_encoderBuffer`/`_discardBuffer`. Add an `ESP32Encoder` member; `readEncoderPosition()` → `getCount()`. **Keep** the direction-tracking + backlash state machine, fed from the new count. |
 | encoder Nano sketches | Deleted (both). |
 | `other_android.ino` | `Serial1`/HC-05 → `BluetoothSerial`. Re-enable the currently-commented `bluetoothSerialAvailable()` (RX) and `reportBluetooth()` (telemetry). JSON command set + telemetry keys unchanged. |
-| `other_time.ino` | Drop `rtc.now()`. Base time set by phone `time` command (`parseReceivedTimeString`) + `millis()` offset so seconds advance between updates. Optional NTP-over-WiFi fallback. |
+| `other_time.ino` | Keep `rtc.now()` (DS3231). The phone `time` command still `rtc.adjust`s it (`parseReceivedTimeString`); optional NTP sync over WiFi. |
 | `other_lcd.ino` | Reimplement `printLcdAt` / `printLcdNumber` / `printLcdFloatingPointNumber` / `renderMenuOptions` against Adafruit_GFX on **OLED #2**. `registerButton()` reads MCP23017 instead of the analog ladder + `digitalRead`. Menu flow/logic unchanged. |
 | `other_oled.ino` | Stays — OLED #1 (sky map). |
-| `Globals.hpp` | Full pin-map rewrite to the GPIO table in 4.4; remove RTC/LCD/serial-encoder globals. |
-| `main_sketch.ino` | `setup()`: init `ESP32Encoder` ×3 (2 axes + knob), ADS1115, MCP23017, `BluetoothSerial`, 2× SSD1306; remove RTC / `Serial1/2/3` init. Loop timer structure unchanged. |
+| `Globals.hpp` | Full pin-map rewrite to the GPIO table in 4.4; remove LCD/serial-encoder globals (RTC kept). |
+| `main_sketch.ino` | `setup()`: init `ESP32Encoder` ×3 (2 axes + knob), ADS1115, 2× MCP23017, DS3231 RTC, `BluetoothSerial`, 2× SSD1306; remove `Serial1/2/3` init. Loop timer structure unchanged. |
 
 ### 5.3 Encoder subsystem
 PCNT replaces the serial link. Higher resolution, no serial latency, no packet-loss
@@ -191,9 +194,9 @@ commented out in `loop()` and get re-enabled as part of the port. Protocol bytes
 identical, so `GreatGrandeurs` pairs and talks to the ESP32 as it did to the HC-05.
 
 ### 5.5 Time source
-Store a base date/time from the phone `time` command plus a `millis()` offset; compute
-current time on demand in `calculateTime()`. No RTC chip. NTP-over-WiFi is an optional free
-fallback for phone-less operation.
+Primary source is the **DS3231 RTC** (kept, 0x68), read in `calculateTime()` as today. The phone
+`time` command still syncs it (`rtc.adjust`), and NTP-over-WiFi is an optional extra sync. This
+keeps correct time at power-on with no phone or network.
 
 ### 5.6 Human interface
 - **Analog:** ADS1115 → scaled to 0–1023 → fed into existing pot/joystick logic unchanged.

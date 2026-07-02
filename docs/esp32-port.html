@@ -89,6 +89,7 @@ minimal-change port to a proper rework (rewiring accepted). Where later sections
   <li><strong>Driver ENABLE wired</strong> per-axis (GPIO16/17) for idle auto-disable.</li>
   <li><strong>2× MCP23017</strong> (0x20 inputs, 0x21 outputs) for headroom.</li>
   <li><strong>NVS calibration persistence</strong> is now core scope.</li>
+  <li><strong>DS3231 RTC kept</strong> (I²C 0x68, no extra pins) as primary time source; phone/NTP sync it.</li>
   <li><strong>Bluetooth telemetry fully implemented</strong> with clean JSON framing.</li>
 </ul></div>
 
@@ -105,6 +106,8 @@ minimal-change port to a proper rework (rewiring accepted). Where later sections
   <a href="#keep">10 · What stays identical</a>
   <a href="#scope">11 · Optional / Phase 2</a>
   <a href="#open">12 · Open confirmations &amp; risks</a>
+  <a href="#physical">13 · Physical layout (breadboard view)</a>
+  <a href="#parts">14 · Shopping list &amp; Brazil sources</a>
 </nav>
 
 <!-- ===================== 1 ===================== -->
@@ -157,7 +160,7 @@ The goal is to collapse all of that into <strong>one ESP-WROOM-32</strong>.</p>
   <tr><td>Main MCU</td><td>Arduino Mega 2560</td><td>—</td><td>❌ replaced by ESP32</td></tr>
   <tr><td>Encoder readers ×2</td><td>Arduino Nano</td><td>UART @57600</td><td>❌ deleted (PCNT)</td></tr>
   <tr><td>Bluetooth</td><td>HC-05</td><td>UART @9600</td><td>❌ on-chip radio</td></tr>
-  <tr><td>Clock</td><td>DS3231 RTC</td><td>I²C 0x68</td><td>❌ phone-set time</td></tr>
+  <tr><td>Clock</td><td>DS3231 RTC</td><td>I²C 0x68</td><td>✅ kept (0x68, no extra pins)</td></tr>
   <tr><td>Encoders ×2</td><td>YT3806 1000PPR NPN</td><td>quadrature A/B</td><td>✅ kept → PCNT</td></tr>
   <tr><td>Steppers ×2</td><td>NEMA 17 + TB6600</td><td>STEP/DIR</td><td>✅ kept</td></tr>
   <tr><td>IMU</td><td>MPU6050</td><td>I²C 0x69</td><td>✅ kept</td></tr>
@@ -488,7 +491,8 @@ whole bus.</p>
   </g>
 </svg>
 <figcaption>The 2nd OLED's on-board address jumper (<code>0x78</code> / <code>0x7A</code> = 0x3C / 0x3D)
-is set to <strong>0x3D</strong>, so both OLEDs coexist on one bus.</figcaption>
+is set to <strong>0x3D</strong>, so both OLEDs coexist on one bus. Also on the same bus: a second
+MCP23017 at <code>0x21</code> (outputs) and the <strong>DS3231 RTC at 0x68</strong> — no address clashes.</figcaption>
 </figure>
 
 <!-- ===================== 7 ===================== -->
@@ -595,6 +599,216 @@ the calibration flow, the backlash-compensation algorithm, the star catalog, and
   <li>BluetoothSerial + WiFi share the radio; if NTP is added, fetch time only at connect or verify coexistence.</li>
   <li>Porting the LCD menu to OLED is the largest single code task; it is well-contained behind the existing <code>printLcd*</code> helpers.</li>
 </ul>
+
+<!-- ===================== 13 ===================== -->
+<h2 id="physical">13 · Physical layout (breadboard view)</h2>
+<p>Yes — this is a real thing: a <strong>breadboard / physical layout view</strong> (the
+"breadboard" view in tools like Fritzing). It shows where each module physically sits and how the
+cabling runs, as opposed to the logical schematics above. Below is the layout for the exact parts
+you have.</p>
+
+<div class="callout ok"><strong>You can drop from 3 breadboards to 2.</strong> The old build needed
+three mainly because of the two encoder Nanos and all the point-to-point analog/parallel wiring. The
+new design funnels almost everything onto the 4-wire I²C bus, so it splits cleanly into
+<strong>Board 1 — MCU + power</strong> and <strong>Board 2 — I²C peripherals + HID</strong>, joined
+by one 4-wire ribbon (SDA, SCL, 3.3 V, GND).</div>
+
+<svg viewBox="0 0 1000 760" role="img" aria-label="Breadboard physical layout">
+  <style>
+    .pb-bb{fill:#0e1a24;stroke:#2a3a4d;stroke-width:2;}
+    .pb-esp{fill:#1d3350;stroke:#4aa3ff;stroke-width:2;}
+    .pb-chip{fill:#16212e;stroke:#4aa3ff;stroke-width:1.4;}
+    .pb-reg{fill:#16212e;stroke:#e3873a;stroke-width:1.4;}
+    .pb-psu{fill:#241416;stroke:#f85149;stroke-width:1.4;}
+    .pb-drv{fill:#1a1426;stroke:#bc8cff;stroke-width:1.4;}
+    .pb-enc{fill:#0f2416;stroke:#3fb950;stroke-width:1.4;}
+    .pb-hid{fill:#241f10;stroke:#e3b341;stroke-width:1.4;}
+    .pb-tt{fill:#cfe2f5;font:bold 13px sans-serif;}
+    .pb-t{fill:#e6edf3;font:12px sans-serif;text-anchor:middle;}
+    .pb-a{fill:#9fb0c0;font:10.5px ui-monospace,monospace;text-anchor:middle;}
+    .pb-s{fill:#9fb0c0;font:10.5px sans-serif;}
+  </style>
+
+  <!-- PSUs -->
+  <rect class="pb-psu" x="95" y="20" width="180" height="42" rx="6"/>
+  <text class="pb-t" x="185" y="38">24 V · 15 A PSU</text><text class="pb-a" x="185" y="54">→ TB6600 VCC (motors)</text>
+  <rect class="pb-psu" x="300" y="20" width="185" height="42" rx="6"/>
+  <text class="pb-t" x="392" y="38">12 V · 20 A PSU</text><text class="pb-a" x="392" y="54">→ encoders + 5 V reg</text>
+
+  <!-- ================= BOARD 1 ================= -->
+  <text class="pb-tt" x="42" y="102">BOARD 1 — MCU + POWER</text>
+  <rect class="pb-bb" x="40" y="112" width="450" height="352" rx="8"/>
+  <!-- rails -->
+  <line x1="52" y1="128" x2="478" y2="128" stroke="#e3873a" stroke-width="2.5"/><text class="pb-s" x="52" y="123" fill="#e3873a">5 V</text>
+  <line x1="52" y1="138" x2="478" y2="138" stroke="#8b98a5" stroke-width="2.5"/>
+  <line x1="52" y1="448" x2="478" y2="448" stroke="#e3b341" stroke-width="2.5"/><text class="pb-s" x="52" y="443" fill="#e3b341">3.3 V</text>
+  <line x1="52" y1="438" x2="478" y2="438" stroke="#8b98a5" stroke-width="2.5"/>
+  <!-- regs -->
+  <rect class="pb-reg" x="60" y="172" width="150" height="46" rx="5"/><text class="pb-t" x="135" y="190">LM1117-5.0</text><text class="pb-a" x="135" y="206">12 V → 5 V</text>
+  <rect class="pb-reg" x="60" y="248" width="150" height="46" rx="5"/><text class="pb-t" x="135" y="266">AMS1117-3.3</text><text class="pb-a" x="135" y="282">5 V → 3.3 V</text>
+  <text class="pb-s" x="60" y="330">enc pull-ups:</text><text class="pb-s" x="60" y="344">4 × 4.7 kΩ → 3.3 V</text>
+  <!-- ESP32 -->
+  <rect class="pb-esp" x="292" y="160" width="160" height="205" rx="6"/>
+  <text class="pb-tt" x="372" y="196" text-anchor="middle">ESP32</text><text class="pb-a" x="372" y="212">WROOM-32</text>
+  <text class="pb-a" x="372" y="238">21/22 → I²C</text>
+  <text class="pb-a" x="372" y="254">VIN ← 5 V</text>
+  <text class="pb-a" x="372" y="270">3V3 ↔ rail</text>
+  <!-- signal callouts under ESP -->
+  <text class="pb-a" x="372" y="388">25/26/16 → TB6600 V</text>
+  <text class="pb-a" x="372" y="404">32/33/17 → TB6600 H</text>
+  <text class="pb-a" x="372" y="420">34/35 · 36/39 → encoders</text>
+  <text class="pb-a" x="372" y="436">27/14 → knob · 13 → LED</text>
+  <!-- power wires -->
+  <path d="M392 62 V150 H210 V195" stroke="#f85149" stroke-width="2" fill="none"/><text class="pb-s" x="396" y="120" fill="#f85149">12 V</text>
+  <path d="M210 195 H292" stroke="#e3873a" stroke-width="2" fill="none"/>
+  <path d="M135 218 V248" stroke="#e3873a" stroke-width="2" fill="none"/>
+  <path d="M135 294 V438" stroke="#e3b341" stroke-width="2" fill="none"/>
+
+  <!-- ================= BOARD 2 ================= -->
+  <text class="pb-tt" x="517" y="102">BOARD 2 — I²C PERIPHERALS + HID</text>
+  <rect class="pb-bb" x="515" y="112" width="450" height="352" rx="8"/>
+  <!-- rails -->
+  <line x1="527" y1="128" x2="953" y2="128" stroke="#e3b341" stroke-width="2.5"/><text class="pb-s" x="527" y="123" fill="#e3b341">3.3 V</text>
+  <line x1="527" y1="138" x2="953" y2="138" stroke="#8b98a5" stroke-width="2.5"/>
+  <!-- I2C bus -->
+  <line x1="527" y1="292" x2="953" y2="292" stroke="#4aa3ff" stroke-width="2.5"/>
+  <line x1="527" y1="304" x2="953" y2="304" stroke="#4aa3ff" stroke-width="2.5"/>
+  <text class="pb-s" x="527" y="322" fill="#4aa3ff">SDA / SCL</text>
+  <rect x="620" y="140" width="8" height="150" fill="none" stroke="#e3b341" stroke-width="1.5"/><text class="pb-s" x="634" y="200" fill="#e3b341">2×4.7k</text>
+  <!-- row 1 chips -->
+  <rect class="pb-chip" x="527" y="152" width="98" height="44" rx="5"/><text class="pb-t" x="576" y="172">OLED #1</text><text class="pb-a" x="576" y="188">0x3C</text>
+  <rect class="pb-chip" x="633" y="152" width="98" height="44" rx="5"/><text class="pb-t" x="682" y="172">OLED #2</text><text class="pb-a" x="682" y="188">0x3D</text>
+  <rect class="pb-chip" x="739" y="152" width="98" height="44" rx="5"/><text class="pb-t" x="788" y="172">MPU6050</text><text class="pb-a" x="788" y="188">0x69</text>
+  <rect class="pb-chip" x="845" y="152" width="98" height="44" rx="5"/><text class="pb-t" x="894" y="172">DS3231</text><text class="pb-a" x="894" y="188">0x68</text>
+  <!-- row 2 chips -->
+  <rect class="pb-chip" x="527" y="344" width="112" height="44" rx="5"/><text class="pb-t" x="583" y="364">ADS1115</text><text class="pb-a" x="583" y="380">0x48</text>
+  <rect class="pb-chip" x="649" y="344" width="112" height="44" rx="5"/><text class="pb-t" x="705" y="364">MCP23017</text><text class="pb-a" x="705" y="380">0x20 · in</text>
+  <rect class="pb-chip" x="771" y="344" width="112" height="44" rx="5"/><text class="pb-t" x="827" y="364">MCP23017</text><text class="pb-a" x="827" y="380">0x21 · out</text>
+  <!-- taps to bus -->
+  <g stroke="#4aa3ff" stroke-width="1.6">
+    <line x1="576" y1="196" x2="576" y2="292"/><line x1="682" y1="196" x2="682" y2="292"/>
+    <line x1="788" y1="196" x2="788" y2="292"/><line x1="894" y1="196" x2="894" y2="292"/>
+    <line x1="583" y1="344" x2="583" y2="304"/><line x1="705" y1="344" x2="705" y2="304"/>
+    <line x1="827" y1="344" x2="827" y2="304"/>
+  </g>
+
+  <!-- I2C ribbon link -->
+  <path d="M452 300 H515" stroke="#4aa3ff" stroke-width="2"/>
+  <path d="M452 312 H515" stroke="#4aa3ff" stroke-width="2"/>
+  <path d="M452 324 H515" stroke="#e3b341" stroke-width="2"/>
+  <path d="M452 336 H515" stroke="#8b98a5" stroke-width="2"/>
+  <text class="pb-s" x="458" y="356">4-wire ribbon: SDA·SCL·3V3·GND</text>
+
+  <!-- ================= OFF-BOARD: drivers/encoders ================= -->
+  <rect class="pb-drv" x="45" y="560" width="120" height="52" rx="6"/><text class="pb-t" x="105" y="590">TB6600 V</text>
+  <rect class="pb-drv" x="175" y="560" width="120" height="52" rx="6"/><text class="pb-t" x="235" y="590">TB6600 H</text>
+  <rect class="pb-enc" x="305" y="560" width="120" height="52" rx="6"/><text class="pb-t" x="365" y="583">Encoders</text><text class="pb-a" x="365" y="599">YT3806 ×2</text>
+  <text class="pb-s" x="45" y="636">NEMA 17 ×2 on the drivers · 24 V to VCC · − pins to GND</text>
+  <!-- wires -->
+  <path d="M330 464 V540 H170 V560" stroke="#bc8cff" stroke-width="2" fill="none"/><text class="pb-s" x="176" y="534" fill="#bc8cff">STEP/DIR/ENA (+)</text>
+  <path d="M365 540 V560" stroke="#bc8cff" stroke-width="2" fill="none"/>
+  <path d="M400 464 V520 H365 V560" stroke="#3fb950" stroke-width="2" fill="none"/><text class="pb-s" x="404" y="514" fill="#3fb950">A/B → pull-ups</text>
+  <path d="M185 62 V545 H105 V560" stroke="#b3541e" stroke-width="2" fill="none"/><text class="pb-s" x="60" y="556" fill="#b3541e">24 V</text>
+
+  <!-- ================= OFF-BOARD: HID ================= -->
+  <rect class="pb-hid" x="527" y="560" width="150" height="52" rx="6"/><text class="pb-t" x="602" y="583">Pots + Joysticks</text><text class="pb-a" x="602" y="599">×4 → ADS1115</text>
+  <rect class="pb-hid" x="689" y="560" width="130" height="52" rx="6"/><text class="pb-t" x="754" y="583">Keypad + Buttons</text><text class="pb-a" x="754" y="599">→ MCP 0x20</text>
+  <rect class="pb-hid" x="831" y="560" width="112" height="52" rx="6"/><text class="pb-t" x="887" y="583">LEDs + Laser</text><text class="pb-a" x="887" y="599">→ MCP 0x21</text>
+  <g stroke="#e3b341" stroke-width="1.8" fill="none">
+    <path d="M602 560 V540 H583 V388"/><path d="M754 560 V520 H705 V388"/><path d="M887 560 V500 H827 V388"/>
+  </g>
+</svg>
+<div class="legend">
+  <span><span class="sw" style="background:#b3541e"></span> 24 V</span>
+  <span><span class="sw" style="background:#f85149"></span> 12 V</span>
+  <span><span class="sw" style="background:#e3873a"></span> 5 V</span>
+  <span><span class="sw" style="background:#e3b341"></span> 3.3 V / HID</span>
+  <span><span class="sw" style="background:#8b98a5"></span> GND</span>
+  <span><span class="sw" style="background:#4aa3ff"></span> I²C</span>
+  <span><span class="sw" style="background:#bc8cff"></span> STEP/DIR/ENA</span>
+  <span><span class="sw" style="background:#3fb950"></span> encoder A/B</span>
+</div>
+
+<p style="color:var(--muted);font-size:14px"><strong>Why not a single board:</strong> the 30-pin
+ESP32 DevKit is as wide as a standard breadboard and covers the tie-point columns on both sides,
+leaving no room for neighbours — so the peripherals get their own board. For a truly tidy build the
+endgame is to solder onto one perfboard or a small custom PCB; two breadboards is the clean
+solderless version.</p>
+
+<h3>Cabling summary</h3>
+<table>
+  <tr><th>From</th><th>Wire</th><th>To</th></tr>
+  <tr><td>24 V PSU</td><td>motor power</td><td>TB6600 ×2 — <code>VCC</code> / <code>GND</code></td></tr>
+  <tr><td>12 V PSU</td><td>encoder power</td><td>Encoder <code>V+</code> (both) + LM1117 input</td></tr>
+  <tr><td>LM1117-5.0</td><td>5 V</td><td>ESP32 <code>VIN</code> (+ 5 V rail)</td></tr>
+  <tr><td>AMS1117-3.3</td><td>3.3 V</td><td>all I²C devices, all pull-ups, TB6600 opto common</td></tr>
+  <tr><td>ESP32 25 / 26 / 16</td><td>STEP / DIR / ENA (+ pins)</td><td>TB6600 V (<code>–</code> pins → GND)</td></tr>
+  <tr><td>ESP32 32 / 33 / 17</td><td>STEP / DIR / ENA (+ pins)</td><td>TB6600 H (<code>–</code> pins → GND)</td></tr>
+  <tr><td>Encoder V A / B</td><td>via 4.7 kΩ → 3.3 V</td><td>ESP32 34 / 35</td></tr>
+  <tr><td>Encoder H A / B</td><td>via 4.7 kΩ → 3.3 V</td><td>ESP32 36 / 39</td></tr>
+  <tr><td>ESP32 27 / 14</td><td>quadrature</td><td>menu knob A / B</td></tr>
+  <tr><td>ESP32 13</td><td>PWM</td><td>breathing LED</td></tr>
+  <tr><td>ESP32 21 / 22</td><td>I²C (+ 2× 4.7 kΩ → 3.3 V)</td><td>Board 2 bus → all I²C devices</td></tr>
+  <tr><td>Board 1 3.3 V / GND</td><td>2 wires</td><td>Board 2 rails</td></tr>
+  <tr><td>ADS1115 A0–A3</td><td>analog</td><td>2 pots + 2 joysticks</td></tr>
+  <tr><td>MCP23017 0x20</td><td>digital inputs</td><td>keypad + control buttons</td></tr>
+  <tr><td>MCP23017 0x21</td><td>digital outputs</td><td>4 status LEDs + laser</td></tr>
+</table>
+
+<!-- ===================== 14 ===================== -->
+<h2 id="parts">14 · Shopping list &amp; Brazil sources</h2>
+<p>You already have almost everything. Only three items need buying — all stocked by Brazilian
+retailers (no import). Prices vary, so check each cart; the linked shops all ship nationally.</p>
+
+<h3>To buy</h3>
+<table>
+  <tr><th>Part</th><th>Qty</th><th>For</th></tr>
+  <tr><td><strong>ADS1115</strong> — 16-bit I²C ADC</td><td>1</td><td>4 analog controls (pots + joysticks)</td></tr>
+  <tr><td><strong>MCP23017</strong> — I²C I/O expander</td><td>2</td><td>buttons/keypad (0x20) + LEDs/laser (0x21)</td></tr>
+  <tr><td><strong>4.7 kΩ resistors</strong> (or assorted kit)</td><td>~6+</td><td>4 encoder pull-ups + 2 I²C pull-ups</td></tr>
+</table>
+<p style="font-size:14px;color:var(--muted)">Optional: male header pins, extra jumper wires, and a
+perfboard for the eventual soldered version. <strong>Not needed:</strong> level shifter or buck
+converter — the existing LM1117 / AMS1117 rails cover it.</p>
+
+<h3>Already in hand (don't rebuy)</h3>
+<p style="font-size:14px;color:var(--muted)">ESP32 DevKit · 2× SSD1306 OLED · MPU6050 · DS3231 RTC ·
+2× TB6600 · 2× NEMA 17 · 2× YT3806 encoder · 24 V + 12 V PSUs · LM1117-5.0 · AMS1117-3.3 ·
+breadboards + jumpers · pots · joysticks · keypad · LEDs · laser.</p>
+
+<h3>Where to buy (Brazil)</h3>
+<div class="grid3">
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill i2c">ADS1115</span> ×1</h3>
+    <ul style="margin:0;padding-left:18px;font-size:14px">
+      <li><a href="https://www.makerhero.com/produto/conversor-analogico-digital-4-canais-ads1115/">MakerHero</a></li>
+      <li><a href="https://www.eletrogate.com/modulo-conversor-analogico-digital-adc-ads1115">Eletrogate</a></li>
+      <li><a href="https://curtocircuito.com.br/conversor-analogico-digital-i2c-16-bits-ads1115.html">Curto Circuito</a></li>
+      <li><a href="https://www.smartprojectsbrasil.com.br/modulo-conversor-analogico-digital-ads1115-16-bit-i2c-adc">SmartProjects</a></li>
+      <li><a href="https://lista.mercadolivre.com.br/ads1115">Mercado Livre</a></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill i2c">MCP23017</span> ×2</h3>
+    <ul style="margin:0;padding-left:18px;font-size:14px">
+      <li><a href="https://www.usinainfo.com.br/conversores-de-sinal/modulo-mcp23017-serial-bidirecional-i2c-spi-expansor-de-io-16-bits-5110.html">Usinainfo</a></li>
+      <li><a href="https://curtocircuito.com.br/modulo-expansor-i-o-16-bit-mcp23017-i2c.html">Curto Circuito</a></li>
+      <li><a href="https://www.msseletronica.com.br/detalhes/modulo-mcp23017-expansor-de-portas-digitais-16-bits-i2c-expansor-de-pinos-digitais-i-o_pid1316.html">MSS Eletrônica</a></li>
+      <li><a href="https://lista.mercadolivre.com.br/i2c-mcp23017">Mercado Livre</a></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill misc">4.7 kΩ</span> resistors</h3>
+    <ul style="margin:0;padding-left:18px;font-size:14px">
+      <li><a href="https://www.usinainfo.com.br/resistor-14-watt/resistor-4k7-14w-kit-com-10-unidades-3773.html">Usinainfo — 4K7 (10-pack)</a></li>
+      <li><a href="https://www.smartprojectsbrasil.com.br/kit-de-resistores-com-600-unidades-14w-1-30-valores">SmartProjects — 600-pc kit</a></li>
+      <li><a href="https://www.amazon.com.br/Resistor-4K7-4W-5-Kit-Unidades/dp/B09TWY8TGN">Amazon.com.br — 4K7 (100-pack)</a></li>
+      <li><a href="https://www.marinostore.com/componentes/resistores/resistor-4k7-14w">Marino Store</a></li>
+    </ul>
+  </div>
+</div>
+<p style="font-size:14px;color:var(--muted)">An assorted resistor kit (SmartProjects / Amazon) is
+the practical pick — you'll want other values eventually.</p>
 
 <footer>
   Telescope Mount ESP32 Port · design reference · 2026-07-01<br>
