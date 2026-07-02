@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telescope Mount — ESP32 Port Design</title>
+<style>
+  :root {
+    --bg:#0f1720; --panel:#16212e; --ink:#e6edf3; --muted:#9fb0c0;
+    --accent:#4aa3ff; --line:#2a3a4d; --ok:#3fb950; --warn:#e3b341; --bad:#f85149;
+    --power:#f85149; --gnd:#8b98a5; --step:#e3873a; --enc:#3fb950; --i2c:#4aa3ff; --misc:#bc8cff;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 24px 120px; }
+  header.hero {
+    background:linear-gradient(135deg,#0b1a2e,#123 60%,#1a2b3d);
+    border-bottom:1px solid var(--line); padding:48px 24px; text-align:center;
+  }
+  header.hero h1 { margin:0 0 8px; font-size:34px; letter-spacing:.3px; }
+  header.hero p { margin:4px 0; color:var(--muted); }
+  .badge { display:inline-block; font-size:12px; padding:3px 10px; border-radius:20px;
+    background:#1f3348; color:var(--accent); border:1px solid var(--line); margin-top:10px; }
+  h2 { margin-top:56px; padding-bottom:8px; border-bottom:2px solid var(--line);
+    font-size:24px; scroll-margin-top:20px; }
+  h3 { margin-top:32px; font-size:19px; color:#cfe2f5; }
+  a { color:var(--accent); }
+  code, .mono { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.92em; }
+  code { background:#1d2b3a; padding:1px 6px; border-radius:5px; }
+  p.lead { font-size:18px; color:#cdd9e5; }
+  .toc { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:18px 24px; margin:32px 0; column-count:2; column-gap:36px; }
+  .toc a { display:block; padding:3px 0; color:#bcd; text-decoration:none; break-inside:avoid; }
+  .toc a:hover { color:var(--accent); }
+  table { width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px; }
+  th, td { border:1px solid var(--line); padding:8px 11px; text-align:left; vertical-align:top; }
+  th { background:#1c2a39; color:#cfe2f5; }
+  tr:nth-child(even) td { background:#13202e; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 24px; margin:22px 0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  figure { margin:22px 0; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:14px; }
+  figure img { width:100%; border-radius:8px; display:block; }
+  figcaption { color:var(--muted); font-size:13.5px; margin-top:10px; text-align:center; }
+  .callout { border-left:4px solid var(--accent); background:#12202f; padding:12px 18px; border-radius:0 8px 8px 0; margin:18px 0; }
+  .callout.warn { border-left-color:var(--warn); background:#241f10; }
+  .callout.bad  { border-left-color:var(--bad);  background:#2a1414; }
+  .callout.ok   { border-left-color:var(--ok);   background:#0f2416; }
+  .callout strong { color:#fff; }
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; color:#0b1420; }
+  .pill.step{background:var(--step);} .pill.enc{background:var(--enc);} .pill.i2c{background:var(--i2c);}
+  .pill.pwr{background:var(--power);} .pill.misc{background:var(--misc);} .pill.gnd{background:var(--gnd);}
+  svg { width:100%; height:auto; display:block; background:#0c141d; border-radius:8px; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; margin:10px 2px 0; font-size:13px; color:var(--muted); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:14px; height:14px; border-radius:3px; display:inline-block; }
+  footer { color:var(--muted); font-size:13px; text-align:center; margin-top:60px; padding-top:20px; border-top:1px solid var(--line); }
+  @media (max-width:760px){ .grid2,.grid3,.toc{grid-template-columns:1fr; column-count:1;} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>🔭 Telescope Mount — ESP32 Port</h1>
+  <p>Replacing the Arduino Mega 2560 + two encoder Nanos + HC-05 + RTC with a single ESP-WROOM-32</p>
+  <p><code>telescope-arduino / main_sketch</code></p>
+  <span class="badge">Design · 2026-07-01 · target board: DOIT ESP32 DevKit V1 (30-pin)</span>
+</header>
+
+<div class="wrap">
+
+<p class="lead">This document is the complete reference for porting the mount controller firmware
+to a classic ESP32. It covers the hardware inventory, the wiring and schematics, the pin
+map, and every firmware change — enough to build and flash the new controller without
+re-deriving anything.</p>
+
+<div class="callout" style="border-left-color:var(--warn);background:#241f10">
+<strong>Revision — elevated scope (major rework approved).</strong> Scope was raised from a
+minimal-change port to a proper rework (rewiring accepted). Where later sections differ, these win:
+<ul style="margin:8px 0 0">
+  <li><strong>Modular firmware re-architecture</strong> — HAL + focused modules, no global soup
+  (see §9), keeping the proven astronomy/calibration/backslash logic.</li>
+  <li><strong>TB6600 rewired common-cathode</strong> — active-high STEP/DIR at 3.3 V.</li>
+  <li><strong>Driver ENABLE wired</strong> per-axis (GPIO16/17) for idle auto-disable.</li>
+  <li><strong>2× MCP23017</strong> (0x20 inputs, 0x21 outputs) for headroom.</li>
+  <li><strong>NVS calibration persistence</strong> is now core scope.</li>
+  <li><strong>Bluetooth telemetry fully implemented</strong> with clean JSON framing.</li>
+</ul></div>
+
+<nav class="toc">
+  <a href="#goal">1 · Goal &amp; rationale</a>
+  <a href="#hardware">2 · The physical hardware</a>
+  <a href="#arch">3 · System architecture (before → after)</a>
+  <a href="#pinmap">4 · ESP32 pin map &amp; wiring</a>
+  <a href="#encoder">5 · Encoder schematic (open-collector)</a>
+  <a href="#i2c">6 · I²C bus topology</a>
+  <a href="#power">7 · Power rails &amp; grounding</a>
+  <a href="#offload">8 · HID offload chips</a>
+  <a href="#firmware">9 · Firmware change map</a>
+  <a href="#keep">10 · What stays identical</a>
+  <a href="#scope">11 · Optional / Phase 2</a>
+  <a href="#open">12 · Open confirmations &amp; risks</a>
+</nav>
+
+<!-- ===================== 1 ===================== -->
+<h2 id="goal">1 · Goal &amp; rationale</h2>
+<p>Today the mount is driven by <strong>three microcontrollers</strong>: an Arduino Mega 2560
+plus two Arduino Nanos that do nothing but read one quadrature encoder each and stream the
+position over serial. Add-on modules handle Bluetooth (HC-05) and timekeeping (DS3231 RTC).
+The goal is to collapse all of that into <strong>one ESP-WROOM-32</strong>.</p>
+
+<div class="grid3">
+  <div class="card"><h3 style="margin-top:0">Bluetooth Classic</h3>
+    The ESP32 speaks SPP/RFCOMM on-chip, so the <code>GreatGrandeurs</code> Android app
+    connects exactly as it did to the HC-05 — <strong>no app changes</strong>.</div>
+  <div class="card"><h3 style="margin-top:0">PCNT hardware</h3>
+    8 hardware pulse counters read both encoders (and the menu knob) directly, deleting the
+    two Nanos and the custom serial protocol.</div>
+  <div class="card"><h3 style="margin-top:0">64-bit doubles</h3>
+    The ESP32 does true double precision, fixing the AVR limitation the project README lists
+    as future work. WiFi is a bonus (optional NTP).</div>
+</div>
+
+<!-- ===================== 2 ===================== -->
+<h2 id="hardware">2 · The physical hardware</h2>
+
+<div class="grid2">
+  <figure>
+    <img src="assets/esp32-wroom32-devkit.png" alt="ESP-WROOM-32 DevKit">
+    <figcaption><strong>ESP-WROOM-32, DOIT DevKit V1 (30-pin)</strong> — CP2102 USB-UART.
+    Classic ESP32-D0WD: dual-core, WiFi + Bluetooth Classic + BLE.</figcaption>
+  </figure>
+  <figure>
+    <img src="assets/encoder-yt3806-label.png" alt="YT3806 encoder label">
+    <figcaption><strong>YT3806-1000PPR-NPN</strong> — 1000 pulses/rev quadrature. Red = 8–24 V,
+    Black = 0 V common, Green = OUT A, White = OUT B, Shield = GND. <em>NPN open-collector.</em></figcaption>
+  </figure>
+  <figure>
+    <img src="assets/motor-nema17-encoder.png" alt="NEMA17 with encoder">
+    <figcaption><strong>NEMA 17 stepper</strong> with the YT3806 encoder coupled coaxially on
+    top, through a 3D-printed bracket. One of two identical axes.</figcaption>
+  </figure>
+  <figure>
+    <img src="assets/motor-nema17-mount.png" alt="NEMA17 mounted">
+    <figcaption>Motor mounted on the 3D-printed bearing plate — standard 42 mm NEMA 17 frame,
+    driven by a TB6600-class driver.</figcaption>
+  </figure>
+</div>
+
+<table>
+  <tr><th>Component</th><th>Part</th><th>Interface</th><th>Fate in the port</th></tr>
+  <tr><td>Main MCU</td><td>Arduino Mega 2560</td><td>—</td><td>❌ replaced by ESP32</td></tr>
+  <tr><td>Encoder readers ×2</td><td>Arduino Nano</td><td>UART @57600</td><td>❌ deleted (PCNT)</td></tr>
+  <tr><td>Bluetooth</td><td>HC-05</td><td>UART @9600</td><td>❌ on-chip radio</td></tr>
+  <tr><td>Clock</td><td>DS3231 RTC</td><td>I²C 0x68</td><td>❌ phone-set time</td></tr>
+  <tr><td>Encoders ×2</td><td>YT3806 1000PPR NPN</td><td>quadrature A/B</td><td>✅ kept → PCNT</td></tr>
+  <tr><td>Steppers ×2</td><td>NEMA 17 + TB6600</td><td>STEP/DIR</td><td>✅ kept</td></tr>
+  <tr><td>IMU</td><td>MPU6050</td><td>I²C 0x69</td><td>✅ kept</td></tr>
+  <tr><td>Displays</td><td>SSD1306 OLED ×2</td><td>I²C</td><td>✅ kept (LCD dropped)</td></tr>
+  <tr><td>Analog controls</td><td>2 pots + 2 joysticks</td><td>ADC</td><td>✅ → ADS1115</td></tr>
+  <tr><td>Buttons / LEDs / laser</td><td>keypad + buttons</td><td>GPIO</td><td>✅ → MCP23017</td></tr>
+</table>
+
+<!-- ===================== 3 ===================== -->
+<h2 id="arch">3 · System architecture (before → after)</h2>
+<p>The left side is today's four-UART, three-MCU design. The right side is the consolidated
+ESP32: the two encoder UARTs become PCNT inputs, the Bluetooth UART becomes the on-chip
+radio, and all human-interface I/O collapses onto the single I²C bus.</p>
+
+<svg viewBox="0 0 1040 470" role="img" aria-label="Before and after architecture">
+  <style>
+    .box{fill:#16212e;stroke:#2a3a4d;stroke-width:1.5;rx:8;}
+    .mcu{fill:#1d3350;stroke:#4aa3ff;stroke-width:2;}
+    .gone{fill:#241416;stroke:#f85149;stroke-dasharray:4 3;}
+    .t{fill:#e6edf3;font:13px sans-serif;}
+    .tt{fill:#cfe2f5;font:bold 14px sans-serif;}
+    .s{fill:#9fb0c0;font:11px sans-serif;}
+    .ln{stroke:#3a4c60;stroke-width:1.5;fill:none;}
+    .lnr{stroke:#f85149;stroke-width:1.5;fill:none;stroke-dasharray:4 3;}
+    .lnb{stroke:#4aa3ff;stroke-width:1.8;fill:none;}
+    .lng{stroke:#3fb950;stroke-width:1.8;fill:none;}
+  </style>
+  <text x="20" y="24" class="tt">BEFORE — Mega 2560 (4 UARTs)</text>
+  <!-- Mega -->
+  <rect class="box mcu" x="150" y="150" width="120" height="120" rx="8"/>
+  <text x="210" y="205" class="tt" text-anchor="middle">Mega</text>
+  <text x="210" y="222" class="s" text-anchor="middle">2560</text>
+  <!-- peripherals before -->
+  <rect class="box gone" x="20" y="60" width="110" height="34" rx="6"/><text x="75" y="82" class="t" text-anchor="middle">Nano enc V</text>
+  <rect class="box gone" x="20" y="104" width="110" height="34" rx="6"/><text x="75" y="126" class="t" text-anchor="middle">Nano enc H</text>
+  <rect class="box gone" x="20" y="148" width="110" height="34" rx="6"/><text x="75" y="170" class="t" text-anchor="middle">HC-05 BT</text>
+  <rect class="box gone" x="20" y="300" width="110" height="34" rx="6"/><text x="75" y="322" class="t" text-anchor="middle">DS3231 RTC</text>
+  <rect class="box" x="20" y="344" width="110" height="34" rx="6"/><text x="75" y="366" class="t" text-anchor="middle">MPU / OLED</text>
+  <rect class="box" x="300" y="60" width="120" height="34" rx="6"/><text x="360" y="82" class="t" text-anchor="middle">16×2 LCD</text>
+  <rect class="box" x="300" y="104" width="120" height="34" rx="6"/><text x="360" y="126" class="t" text-anchor="middle">pots + joysticks</text>
+  <rect class="box" x="300" y="148" width="120" height="34" rx="6"/><text x="360" y="170" class="t" text-anchor="middle">keypad (analog)</text>
+  <rect class="box" x="300" y="300" width="120" height="34" rx="6"/><text x="360" y="322" class="t" text-anchor="middle">LEDs / laser</text>
+  <rect class="box" x="300" y="344" width="120" height="34" rx="6"/><text x="360" y="366" class="t" text-anchor="middle">steppers ×2</text>
+  <!-- lines before -->
+  <path class="lnr" d="M130 77 H150 V150"/><text x="140" y="72" class="s">Serial2</text>
+  <path class="lnr" d="M130 121 H145 V160"/><text x="138" y="116" class="s">Serial3</text>
+  <path class="lnr" d="M130 165 H150"/><text x="132" y="160" class="s">Serial1</text>
+  <path class="ln" d="M130 317 H140 V250 H150"/>
+  <path class="ln" d="M130 361 H145 V240 H150"/>
+  <path class="ln" d="M300 77 H285 V160 H270"/>
+  <path class="ln" d="M300 121 H288 V175 H270"/>
+  <path class="ln" d="M300 165 H270"/>
+  <path class="ln" d="M300 317 H285 V255 H270"/>
+  <path class="ln" d="M300 361 H285 V245 H270"/>
+
+  <!-- divider -->
+  <line x1="520" y1="40" x2="520" y2="440" stroke="#2a3a4d" stroke-width="1.5" stroke-dasharray="3 4"/>
+
+  <text x="560" y="24" class="tt">AFTER — ESP32 (1 UART)</text>
+  <rect class="box mcu" x="700" y="150" width="130" height="120" rx="8"/>
+  <text x="765" y="200" class="tt" text-anchor="middle">ESP32</text>
+  <text x="765" y="218" class="s" text-anchor="middle">WROOM-32</text>
+  <text x="765" y="240" class="s" text-anchor="middle">BT · WiFi</text>
+  <!-- peripherals after -->
+  <rect class="box" x="560" y="70" width="110" height="34" rx="6"/><text x="615" y="92" class="t" text-anchor="middle">enc V (PCNT)</text>
+  <rect class="box" x="560" y="114" width="110" height="34" rx="6"/><text x="615" y="136" class="t" text-anchor="middle">enc H (PCNT)</text>
+  <rect class="box" x="560" y="300" width="110" height="34" rx="6"/><text x="615" y="322" class="t" text-anchor="middle">knob (PCNT)</text>
+  <rect class="box" x="560" y="344" width="110" height="34" rx="6"/><text x="615" y="366" class="t" text-anchor="middle">steppers ×2</text>
+  <rect class="box" x="880" y="70" width="130" height="30" rx="6"/><text x="945" y="90" class="t" text-anchor="middle">OLED ×2</text>
+  <rect class="box" x="880" y="106" width="130" height="30" rx="6"/><text x="945" y="126" class="t" text-anchor="middle">MPU6050</text>
+  <rect class="box" x="880" y="142" width="130" height="30" rx="6"/><text x="945" y="162" class="t" text-anchor="middle">ADS1115 (analog)</text>
+  <rect class="box" x="880" y="178" width="130" height="30" rx="6"/><text x="945" y="198" class="t" text-anchor="middle">MCP23017 (digital)</text>
+  <!-- phone -->
+  <rect class="box" x="700" y="300" width="130" height="60" rx="8" style="fill:#0f2416;stroke:#3fb950"/>
+  <text x="765" y="326" class="t" text-anchor="middle">📱 Android app</text>
+  <text x="765" y="345" class="s" text-anchor="middle">Bluetooth SPP</text>
+  <!-- lines after -->
+  <path class="lng" d="M670 87 H700 V160"/><text x="676" y="82" class="s">PCNT</text>
+  <path class="lng" d="M670 131 H690 V165"/>
+  <path class="ln" d="M670 317 H685 V255 H700"/>
+  <path class="ln" d="M670 361 H690 V245 H700"/>
+  <path class="lnb" d="M830 85 H855 V210 H855" /><path class="lnb" d="M855 85 V210"/>
+  <path class="lnb" d="M880 85 H855"/>
+  <path class="lnb" d="M880 121 H855"/>
+  <path class="lnb" d="M880 157 H855"/>
+  <path class="lnb" d="M880 193 H855 V210"/>
+  <path class="lnb" d="M830 210 H855"/><text x="858" y="228" class="s" fill="#4aa3ff">I²C</text>
+  <path class="lng" d="M765 270 V300"/><text x="770" y="290" class="s">radio</text>
+  <text x="560" y="415" class="s">4 UARTs → 1.  Encoders on PCNT, Bluetooth on-radio, all HID on one I²C bus.</text>
+</svg>
+<div class="legend">
+  <span><span class="sw" style="background:#f85149"></span> removed (dashed)</span>
+  <span><span class="sw" style="background:#3fb950"></span> PCNT / radio</span>
+  <span><span class="sw" style="background:#4aa3ff"></span> I²C bus</span>
+  <span><span class="sw" style="background:#3a4c60"></span> GPIO</span>
+</div>
+
+<!-- ===================== 4 ===================== -->
+<h2 id="pinmap">4 · ESP32 pin map &amp; wiring</h2>
+<p>Only the timing-critical signals stay on native GPIO; everything else is on I²C. The board
+below matches the 30-pin DOIT DevKit V1 silkscreen. Colors group signals by function.</p>
+
+<svg viewBox="0 0 1000 560" role="img" aria-label="ESP32 pin map">
+  <style>
+    .brd{fill:#141c26;stroke:#2a3a4d;stroke-width:2;}
+    .chip{fill:#20303f;stroke:#39506a;stroke-width:1.5;}
+    .pin{fill:#0c141d;stroke:#39506a;stroke-width:1;}
+    .pl{font:12px ui-monospace,monospace;fill:#cdd9e5;}
+    .an{font:12px sans-serif;}
+    .anb{font:bold 12px sans-serif;}
+    .hdr{font:bold 13px sans-serif;fill:#9fb0c0;}
+  </style>
+  <!-- board -->
+  <rect class="brd" x="410" y="30" width="180" height="500" rx="10"/>
+  <rect class="chip" x="440" y="55" width="120" height="70" rx="4"/>
+  <text x="500" y="95" class="pl" text-anchor="middle" fill="#9fb0c0">WROOM-32</text>
+  <rect x="470" y="495" width="60" height="26" rx="4" fill="#0c141d" stroke="#39506a"/>
+  <text x="500" y="512" class="pl" text-anchor="middle" fill="#9fb0c0">USB</text>
+
+  <!-- LEFT pins: label, y, color, annotation -->
+  <!-- we lay 15 pins each side -->
+  <g>
+    <!-- left column -->
+    <!-- pin rows start y=150 step 24 -->
+    <!-- EN -->
+    <rect class="pin" x="410" y="150" width="26" height="16"/><text x="405" y="162" class="pl" text-anchor="end">EN</text>
+    <rect class="pin" x="410" y="174" width="26" height="16"/><text x="405" y="186" class="pl" text-anchor="end">VP/36</text>
+    <rect class="pin" x="410" y="198" width="26" height="16"/><text x="405" y="210" class="pl" text-anchor="end">VN/39</text>
+    <rect class="pin" x="410" y="222" width="26" height="16"/><text x="405" y="234" class="pl" text-anchor="end">34</text>
+    <rect class="pin" x="410" y="246" width="26" height="16"/><text x="405" y="258" class="pl" text-anchor="end">35</text>
+    <rect class="pin" x="410" y="270" width="26" height="16"/><text x="405" y="282" class="pl" text-anchor="end">32</text>
+    <rect class="pin" x="410" y="294" width="26" height="16"/><text x="405" y="306" class="pl" text-anchor="end">33</text>
+    <rect class="pin" x="410" y="318" width="26" height="16"/><text x="405" y="330" class="pl" text-anchor="end">25</text>
+    <rect class="pin" x="410" y="342" width="26" height="16"/><text x="405" y="354" class="pl" text-anchor="end">26</text>
+    <rect class="pin" x="410" y="366" width="26" height="16"/><text x="405" y="378" class="pl" text-anchor="end">27</text>
+    <rect class="pin" x="410" y="390" width="26" height="16"/><text x="405" y="402" class="pl" text-anchor="end">14</text>
+    <rect class="pin" x="410" y="414" width="26" height="16"/><text x="405" y="426" class="pl" text-anchor="end">12</text>
+    <rect class="pin" x="410" y="438" width="26" height="16"/><text x="405" y="450" class="pl" text-anchor="end">13</text>
+    <rect class="pin" x="410" y="462" width="26" height="16"/><text x="405" y="474" class="pl" text-anchor="end">GND</text>
+    <rect class="pin" x="410" y="486" width="26" height="16"/><text x="405" y="498" class="pl" text-anchor="end">VIN</text>
+  </g>
+  <g>
+    <!-- right column -->
+    <rect class="pin" x="564" y="150" width="26" height="16"/><text x="595" y="162" class="pl">23</text>
+    <rect class="pin" x="564" y="174" width="26" height="16"/><text x="595" y="186" class="pl">22</text>
+    <rect class="pin" x="564" y="198" width="26" height="16"/><text x="595" y="210" class="pl">TX0/1</text>
+    <rect class="pin" x="564" y="222" width="26" height="16"/><text x="595" y="234" class="pl">RX0/3</text>
+    <rect class="pin" x="564" y="246" width="26" height="16"/><text x="595" y="258" class="pl">21</text>
+    <rect class="pin" x="564" y="270" width="26" height="16"/><text x="595" y="282" class="pl">GND</text>
+    <rect class="pin" x="564" y="294" width="26" height="16"/><text x="595" y="306" class="pl">19</text>
+    <rect class="pin" x="564" y="318" width="26" height="16"/><text x="595" y="330" class="pl">18</text>
+    <rect class="pin" x="564" y="342" width="26" height="16"/><text x="595" y="354" class="pl">5</text>
+    <rect class="pin" x="564" y="366" width="26" height="16"/><text x="595" y="378" class="pl">17</text>
+    <rect class="pin" x="564" y="390" width="26" height="16"/><text x="595" y="402" class="pl">16</text>
+    <rect class="pin" x="564" y="414" width="26" height="16"/><text x="595" y="426" class="pl">4</text>
+    <rect class="pin" x="564" y="438" width="26" height="16"/><text x="595" y="450" class="pl">2</text>
+    <rect class="pin" x="564" y="462" width="26" height="16"/><text x="595" y="474" class="pl">15</text>
+    <rect class="pin" x="564" y="486" width="26" height="16"/><text x="595" y="498" class="pl">3V3</text>
+  </g>
+
+  <!-- LEFT annotations (function callouts) -->
+  <g class="an">
+    <line x1="410" y1="182" x2="250" y2="182" stroke="#3fb950" stroke-width="2"/><text x="245" y="186" fill="#3fb950" text-anchor="end" class="anb">ENC H · A (VP/36)</text>
+    <line x1="410" y1="206" x2="250" y2="206" stroke="#3fb950" stroke-width="2"/><text x="245" y="210" fill="#3fb950" text-anchor="end" class="anb">ENC H · B (VN/39)</text>
+    <line x1="410" y1="230" x2="250" y2="230" stroke="#3fb950" stroke-width="2"/><text x="245" y="234" fill="#3fb950" text-anchor="end" class="anb">ENC V · A (34)</text>
+    <line x1="410" y1="254" x2="250" y2="254" stroke="#3fb950" stroke-width="2"/><text x="245" y="258" fill="#3fb950" text-anchor="end" class="anb">ENC V · B (35)</text>
+    <line x1="410" y1="278" x2="250" y2="278" stroke="#e3873a" stroke-width="2"/><text x="245" y="282" fill="#e3873a" text-anchor="end" class="anb">STEP H (32)</text>
+    <line x1="410" y1="302" x2="250" y2="302" stroke="#e3873a" stroke-width="2"/><text x="245" y="306" fill="#e3873a" text-anchor="end" class="anb">DIR H (33)</text>
+    <line x1="410" y1="326" x2="250" y2="326" stroke="#e3873a" stroke-width="2"/><text x="245" y="330" fill="#e3873a" text-anchor="end" class="anb">STEP V (25)</text>
+    <line x1="410" y1="350" x2="250" y2="350" stroke="#e3873a" stroke-width="2"/><text x="245" y="354" fill="#e3873a" text-anchor="end" class="anb">DIR V (26)</text>
+    <line x1="410" y1="374" x2="250" y2="374" stroke="#bc8cff" stroke-width="2"/><text x="245" y="378" fill="#bc8cff" text-anchor="end" class="anb">KNOB A (27)</text>
+    <line x1="410" y1="398" x2="250" y2="398" stroke="#bc8cff" stroke-width="2"/><text x="245" y="402" fill="#bc8cff" text-anchor="end" class="anb">KNOB B (14)</text>
+    <line x1="410" y1="446" x2="250" y2="446" stroke="#bc8cff" stroke-width="2"/><text x="245" y="450" fill="#bc8cff" text-anchor="end" class="anb">Breathing LED PWM (13)</text>
+    <line x1="410" y1="494" x2="250" y2="494" stroke="#f85149" stroke-width="2"/><text x="245" y="498" fill="#f85149" text-anchor="end" class="anb">+5 V in (VIN)</text>
+  </g>
+  <!-- RIGHT annotations -->
+  <g class="an">
+    <line x1="590" y1="182" x2="760" y2="182" stroke="#4aa3ff" stroke-width="2"/><text x="765" y="186" fill="#4aa3ff" class="anb">I²C SCL (22)</text>
+    <line x1="590" y1="206" x2="760" y2="206" stroke="#9fb0c0" stroke-width="2"/><text x="765" y="210" fill="#9fb0c0" class="anb">USB debug TX0</text>
+    <line x1="590" y1="230" x2="760" y2="230" stroke="#9fb0c0" stroke-width="2"/><text x="765" y="234" fill="#9fb0c0" class="anb">USB debug RX0</text>
+    <line x1="590" y1="254" x2="760" y2="254" stroke="#4aa3ff" stroke-width="2"/><text x="765" y="258" fill="#4aa3ff" class="anb">I²C SDA (21)</text>
+    <line x1="590" y1="398" x2="760" y2="398" stroke="#e3873a" stroke-width="2"/><text x="765" y="402" fill="#e3873a" class="anb">ENABLE V/H (16/17)</text>
+    <line x1="590" y1="494" x2="760" y2="494" stroke="#f85149" stroke-width="2"/><text x="765" y="498" fill="#f85149" class="anb">3.3 V (pull-ups)</text>
+  </g>
+</svg>
+<div class="legend">
+  <span><span class="sw" style="background:var(--step)"></span> stepper STEP/DIR</span>
+  <span><span class="sw" style="background:var(--enc)"></span> encoder A/B (PCNT)</span>
+  <span><span class="sw" style="background:var(--i2c)"></span> I²C</span>
+  <span><span class="sw" style="background:var(--misc)"></span> knob / PWM</span>
+  <span><span class="sw" style="background:var(--power)"></span> power</span>
+  <span><span class="sw" style="background:var(--gnd)"></span> USB debug</span>
+</div>
+
+<div class="callout ok"><strong>Resolved:</strong> the 2nd OLED has a selectable I²C address
+(<code>0x78</code> / <code>0x7A</code> jumper = 0x3C / 0x3D), so both OLEDs share the one I²C
+bus. No second bus is needed and GPIO16/17 stay free as spares.</div>
+
+<table>
+  <tr><th>Function</th><th>GPIO</th><th>Type</th><th>Notes</th></tr>
+  <tr><td><span class="pill step">STEP</span> Vertical</td><td>25</td><td>output</td><td>to TB6600 PUL+</td></tr>
+  <tr><td><span class="pill step">DIR</span> Vertical</td><td>26</td><td>output</td><td>to TB6600 DIR+</td></tr>
+  <tr><td><span class="pill step">STEP</span> Horizontal</td><td>32</td><td>output</td><td>to TB6600 PUL+</td></tr>
+  <tr><td><span class="pill step">DIR</span> Horizontal</td><td>33</td><td>output</td><td>to TB6600 DIR+</td></tr>
+  <tr><td><span class="pill enc">ENC V</span> A / B</td><td>34 / 35</td><td>input-only</td><td>PCNT, ext. 4.7 kΩ pull-up to 3.3 V</td></tr>
+  <tr><td><span class="pill enc">ENC H</span> A / B</td><td>36 / 39</td><td>input-only</td><td>PCNT, ext. pull-ups</td></tr>
+  <tr><td><span class="pill misc">KNOB</span> A / B</td><td>27 / 14</td><td>in</td><td>PCNT (menu rotary)</td></tr>
+  <tr><td><span class="pill i2c">I²C</span> SDA / SCL</td><td>21 / 22</td><td>bus</td><td>OLED×2, MPU, ADS1115, MCP23017</td></tr>
+  <tr><td><span class="pill misc">Breathing LED</span></td><td>13</td><td>PWM</td><td><code>ledc</code></td></tr>
+  <tr><td><span class="pill gnd">USB debug</span></td><td>TX0/RX0</td><td>UART</td><td>flashing + logs</td></tr>
+  <tr><td><span class="pill step">ENA</span> V / H</td><td>16 / 17</td><td>output</td><td>driver enable (auto-disable idle)</td></tr>
+</table>
+
+<!-- ===================== 5 ===================== -->
+<h2 id="encoder">5 · Encoder schematic (open-collector)</h2>
+<p>The YT3806 outputs are <strong>NPN open-collector</strong>: the transistor only pulls the line
+to 0 V; the high level is set by an external pull-up. That's what makes a 12 V-powered encoder
+safe for a 3.3 V MCU — <strong>pull the signal to 3.3 V, not to 12 V.</strong></p>
+
+<figure style="padding:14px 14px 6px">
+<svg viewBox="0 0 940 360" role="img" aria-label="Encoder open-collector wiring">
+  <style>
+    .w{stroke-width:2.5;fill:none;} .lbl{font:13px sans-serif;fill:#cdd9e5;}
+    .lblb{font:bold 13px sans-serif;} .node{fill:#0c141d;stroke:#39506a;}
+  </style>
+  <!-- encoder body -->
+  <rect x="40" y="90" width="150" height="170" rx="10" fill="#16212e" stroke="#3fb950" stroke-width="2"/>
+  <text x="115" y="120" class="lblb" fill="#3fb950" text-anchor="middle">YT3806</text>
+  <text x="115" y="140" class="lbl" text-anchor="middle" font-size="11">1000 PPR NPN</text>
+  <!-- transistor hint -->
+  <text x="115" y="185" class="lbl" text-anchor="middle" font-size="11">OUT A ⎓ NPN</text>
+  <text x="115" y="205" class="lbl" text-anchor="middle" font-size="11">OUT B ⎓ NPN</text>
+
+  <!-- rails -->
+  <text x="470" y="30" class="lblb" fill="#f85149" text-anchor="middle">+12 V</text>
+  <line x1="60" y1="40" x2="900" y2="40" stroke="#f85149" class="w"/>
+  <text x="470" y="352" class="lblb" fill="#8b98a5" text-anchor="middle">GND (common)</text>
+  <line x1="60" y1="330" x2="900" y2="330" stroke="#8b98a5" class="w"/>
+  <text x="720" y="30" class="lblb" fill="#e3b341" text-anchor="middle">+3.3 V</text>
+  <line x1="600" y1="60" x2="900" y2="60" stroke="#e3b341" class="w"/>
+
+  <!-- Red -> 12V -->
+  <line x1="190" y1="110" x2="470" y2="110" stroke="#f85149" class="w"/>
+  <line x1="470" y1="110" x2="470" y2="40" stroke="#f85149" class="w"/>
+  <text x="300" y="103" class="lbl">Red (V+ 8–24 V)</text>
+  <!-- Black -> GND -->
+  <line x1="190" y1="240" x2="360" y2="240" stroke="#8b98a5" class="w"/>
+  <line x1="360" y1="240" x2="360" y2="330" stroke="#8b98a5" class="w"/>
+  <text x="220" y="233" class="lbl">Black (0 V common)</text>
+  <!-- Shield -> GND -->
+  <line x1="190" y1="255" x2="330" y2="255" stroke="#8b98a5" class="w" stroke-dasharray="3 3"/>
+  <line x1="330" y1="255" x2="330" y2="330" stroke="#8b98a5" class="w" stroke-dasharray="3 3"/>
+  <text x="200" y="278" class="lbl" font-size="11">Shield → GND</text>
+
+  <!-- OUT A green with pull-up -->
+  <line x1="190" y1="165" x2="600" y2="165" stroke="#3fb950" class="w"/>
+  <text x="300" y="158" class="lbl" fill="#3fb950">Green — OUT A</text>
+  <!-- pull-up resistor A -->
+  <rect x="592" y="95" width="16" height="40" fill="none" stroke="#e3b341" stroke-width="2"/>
+  <line x1="600" y1="60" x2="600" y2="95" stroke="#e3b341" class="w"/>
+  <line x1="600" y1="135" x2="600" y2="165" stroke="#e3b341" class="w"/>
+  <text x="620" y="120" class="lbl" font-size="11" fill="#e3b341">4.7 kΩ</text>
+  <!-- to ESP pin A -->
+  <line x1="600" y1="165" x2="760" y2="165" stroke="#3fb950" class="w"/>
+  <circle cx="600" cy="165" r="4" class="node"/>
+
+  <!-- OUT B white with pull-up -->
+  <line x1="190" y1="215" x2="680" y2="215" stroke="#3fb950" class="w"/>
+  <text x="300" y="208" class="lbl" fill="#3fb950">White — OUT B</text>
+  <rect x="672" y="145" width="16" height="40" fill="none" stroke="#e3b341" stroke-width="2"/>
+  <line x1="680" y1="60" x2="680" y2="145" stroke="#e3b341" class="w"/>
+  <line x1="680" y1="185" x2="680" y2="215" stroke="#e3b341" class="w"/>
+  <text x="700" y="170" class="lbl" font-size="11" fill="#e3b341">4.7 kΩ</text>
+  <line x1="680" y1="215" x2="760" y2="215" stroke="#3fb950" class="w"/>
+  <circle cx="680" cy="215" r="4" class="node"/>
+
+  <!-- ESP pins -->
+  <rect x="760" y="140" width="150" height="100" rx="10" fill="#16212e" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="835" y="180" class="lblb" fill="#4aa3ff" text-anchor="middle">ESP32</text>
+  <text x="835" y="200" class="lbl" text-anchor="middle" font-size="11">PCNT A → 34/36</text>
+  <text x="835" y="218" class="lbl" text-anchor="middle" font-size="11">PCNT B → 35/39</text>
+</svg>
+<figcaption>One axis shown; the horizontal axis is identical. Repeat for both encoders.</figcaption>
+</figure>
+
+<div class="callout bad"><strong>Hard rule:</strong> the pull-up resistors go to <strong>3.3 V</strong>.
+Pulling OUT A / OUT B up to the 12 V encoder supply would put 12 V on an ESP32 input and
+destroy it.</div>
+<div class="callout ok"><strong>Why no level shifter is needed:</strong> open-collector outputs don't
+drive a voltage — they only sink to ground. The pull-up alone defines the logic-high level, so a
+single resistor to 3.3 V does the whole job. The chosen pins (34/35/36/39) are input-only with no
+internal pull-ups, so the external resistor is required regardless.</div>
+<p>Resolution: 1000 PPR × 4 (quadrature decode) = <strong>4000 counts/rev</strong>, matching the old
+<code>Encoder.read()</code> behavior, so all downstream calibration/backlash math is unchanged.</p>
+
+<!-- ===================== 6 ===================== -->
+<h2 id="i2c">6 · I²C bus topology</h2>
+<p>One bus, five to six devices, no address collisions. Two 4.7 kΩ pull-ups to 3.3 V for the
+whole bus.</p>
+
+<figure style="padding:14px 14px 6px">
+<svg viewBox="0 0 940 260" role="img" aria-label="I2C bus">
+  <style> .d{fill:#16212e;stroke:#4aa3ff;stroke-width:1.5;} .dl{font:12px sans-serif;fill:#cdd9e5;text-anchor:middle;} .ad{font:11px ui-monospace,monospace;fill:#4aa3ff;text-anchor:middle;} </style>
+  <!-- ESP -->
+  <rect x="30" y="95" width="90" height="70" rx="8" fill="#16212e" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="75" y="125" class="dl">ESP32</text><text x="75" y="143" class="ad">21/22</text>
+  <!-- bus lines -->
+  <line x1="120" y1="115" x2="900" y2="115" stroke="#4aa3ff" stroke-width="2.5"/><text x="130" y="108" class="ad" text-anchor="start">SDA</text>
+  <line x1="120" y1="150" x2="900" y2="150" stroke="#4aa3ff" stroke-width="2.5"/><text x="130" y="170" class="ad" text-anchor="start">SCL</text>
+  <!-- pull-ups -->
+  <line x1="150" y1="60" x2="150" y2="115" stroke="#e3b341" stroke-width="2"/>
+  <line x1="180" y1="60" x2="180" y2="150" stroke="#e3b341" stroke-width="2"/>
+  <line x1="140" y1="60" x2="190" y2="60" stroke="#e3b341" stroke-width="2"/>
+  <text x="205" y="55" class="ad" fill="#e3b341" text-anchor="start">3.3 V · 4.7 kΩ ×2</text>
+  <!-- devices -->
+  <g>
+    <rect class="d" x="250" y="185" width="100" height="50" rx="6"/><text x="300" y="205" class="dl">OLED #1</text><text x="300" y="223" class="ad">0x3C</text>
+    <rect class="d" x="365" y="185" width="100" height="50" rx="6"/><text x="415" y="205" class="dl">OLED #2</text><text x="415" y="223" class="ad">0x3D</text>
+    <rect class="d" x="480" y="185" width="100" height="50" rx="6"/><text x="530" y="205" class="dl">MPU6050</text><text x="530" y="223" class="ad">0x69</text>
+    <rect class="d" x="595" y="185" width="110" height="50" rx="6"/><text x="650" y="205" class="dl">ADS1115</text><text x="650" y="223" class="ad">0x48</text>
+    <rect class="d" x="720" y="185" width="120" height="50" rx="6"/><text x="780" y="205" class="dl">MCP23017</text><text x="780" y="223" class="ad">0x20</text>
+  </g>
+  <!-- drops -->
+  <g stroke="#4aa3ff" stroke-width="1.8">
+    <line x1="300" y1="115" x2="300" y2="185"/><line x1="415" y1="115" x2="415" y2="185"/>
+    <line x1="530" y1="115" x2="530" y2="185"/><line x1="650" y1="115" x2="650" y2="185"/>
+    <line x1="780" y1="115" x2="780" y2="185"/>
+  </g>
+</svg>
+<figcaption>The 2nd OLED's on-board address jumper (<code>0x78</code> / <code>0x7A</code> = 0x3C / 0x3D)
+is set to <strong>0x3D</strong>, so both OLEDs coexist on one bus.</figcaption>
+</figure>
+
+<!-- ===================== 7 ===================== -->
+<h2 id="power">7 · Power rails &amp; grounding</h2>
+<div class="grid2">
+<div class="card">
+<h3 style="margin-top:0">Power tree (reuses existing supplies)</h3>
+<ul>
+  <li><span class="pill pwr">24 V · 15 A</span> Cheng Liang P360W24V → TB6600 <code>VCC</code> (motors).</li>
+  <li><span class="pill pwr">12 V · 20 A</span> Durawell S-240-12 → encoder <code>V+</code>, and feeds the 5 V reg.</li>
+  <li><span class="pill pwr">5 V</span> LM1117T-5.0 (existing) → ESP32 <code>VIN</code>.</li>
+  <li><span class="pill warn">3.3 V</span> AMS1117-3.3 (existing, from 5 V) → all I²C devices, I²C + encoder pull-ups, and the TB6600 opto common.</li>
+</ul>
+</div>
+<div class="card">
+<h3 style="margin-top:0">Grounding &amp; levels</h3>
+<p>All grounds common: ESP32 GND, encoder <em>Black/Shield</em>, TB6600 GND, both PSU 0 V — else
+the open-collector encoder and STEP/DIR signals have no reference.</p>
+<p>Power the I²C devices from <strong>3.3 V</strong> so the bus idles at 3.3 V; at 5 V they would
+put 5 V on the ESP32 SDA/SCL and damage it.</p>
+</div>
+</div>
+<div class="callout warn"><strong>TB6600 wiring (revised — common-cathode):</strong> tie all
+<code>–</code> pins (<code>PUL-</code>, <code>DIR-</code>, <code>ENA-</code>) to GND and drive the
+<code>+</code> pins from the ESP32 — <strong>active-high STEP/DIR at 3.3 V</strong>, no 5 V common,
+no DIR inversion. <code>ENA</code> is now wired per-axis (GPIO16/17) for auto-disable. At ≤7 kHz,
+3.3 V opto drive is comfortable (74HCT125 buffer only as a fallback).</div>
+<div class="callout"><strong>ESP32 ADC note:</strong> ADC2 pins are unusable while WiFi/Bluetooth
+is active. This design keeps <em>all</em> analog on the ADS1115, so the constraint never bites.</div>
+
+<!-- ===================== 8 ===================== -->
+<h2 id="offload">8 · HID offload chips</h2>
+<div class="grid2">
+<div class="card">
+<h3 style="margin-top:0"><span class="pill i2c">ADS1115</span> — 4 analog channels</h3>
+<table style="margin:6px 0">
+  <tr><th>Ch</th><th>Signal</th></tr>
+  <tr><td>A0</td><td>Horizontal pot</td></tr>
+  <tr><td>A1</td><td>Vertical pot</td></tr>
+  <tr><td>A2</td><td>Left joystick</td></tr>
+  <tr><td>A3</td><td>Right joystick</td></tr>
+</table>
+<p style="font-size:14px;color:var(--muted)">A software adapter scales the 16-bit reading into the
+0–1023 range the existing <code>translatePotValueToSpeed()</code> expects, so that logic is
+untouched. The unused <code>SPEED_POT</code> stays dropped.</p>
+</div>
+<div class="card">
+<h3 style="margin-top:0"><span class="pill i2c">2× MCP23017</span> — digital I/O (revised)</h3>
+<table style="margin:6px 0">
+  <tr><th>Chip</th><th>Lines</th></tr>
+  <tr><td>0x20 inputs</td><td>keypad UP/DOWN/LEFT/RIGHT/SELECT + action, knob-push, L-joy, R-joy, enable-pot</td></tr>
+  <tr><td>0x21 outputs</td><td>4 status LEDs + laser + spare</td></tr>
+</table>
+<p style="font-size:14px;color:var(--muted)">Two chips (split inputs/outputs) give comfortable
+headroom instead of one maxed 16/16 chip. The breathing LED needs PWM, so it stays native on
+GPIO13.</p>
+</div>
+</div>
+<p style="font-size:14px;color:var(--muted)">All three offload chips (ADS1115, MCP23017, and — if
+the LCD were kept — a PCF8574 backpack) are stocked by Brazilian retailers (Eletrogate, MakerHero,
+Curto Circuito, Usinainfo, RoboCore/FilipeFlop, Mercado Livre); no import required.</p>
+
+<!-- ===================== 9 ===================== -->
+<h2 id="firmware">9 · Firmware change map</h2>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>platformio.ini</code></td><td>Board → <code>esp32dev</code>. <span style="color:var(--bad)">Remove</span> LiquidCrystal, Encoder, RTClib, SoftwareSerial, SPI. <span style="color:var(--ok)">Add</span> ESP32Encoder, Adafruit_ADS1X15, an MCP23017 lib. BluetoothSerial is built-in. <span style="color:var(--ok)">Keep</span> ArduinoJson, elapsedMillis, Adafruit_GFX/SSD1306, Ephemeris.</td></tr>
+  <tr><td><code>MotorWithEncoder.*</code></td><td><strong>Biggest change.</strong> Drop <code>HardwareSerial*</code>, <code>updateEncoderFromSerial()</code>, the 8-byte bit-decoder and both buffers. Add an <code>ESP32Encoder</code> member; <code>readEncoderPosition()</code> → <code>getCount()</code>. <strong>Keep</strong> the direction + backlash state machine, fed from the new count.</td></tr>
+  <tr><td>encoder Nano sketches</td><td><span style="color:var(--bad)">Deleted (both).</span></td></tr>
+  <tr><td><code>other_android.ino</code></td><td><code>Serial1</code>/HC-05 → <code>BluetoothSerial</code>. Re-enable the currently-commented RX (<code>bluetoothSerialAvailable()</code>) and TX (<code>reportBluetooth()</code>). JSON command set + telemetry keys unchanged.</td></tr>
+  <tr><td><code>other_time.ino</code></td><td>Drop <code>rtc.now()</code>. Base time from the phone <code>time</code> command + <code>millis()</code> offset. Optional NTP-over-WiFi fallback.</td></tr>
+  <tr><td><code>other_lcd.ino</code></td><td>Reimplement <code>printLcd*</code> / <code>renderMenuOptions</code> against Adafruit_GFX on OLED #2. <code>registerButton()</code> reads MCP23017 (keypad now 5 discrete buttons, not a ladder). Menu flow unchanged.</td></tr>
+  <tr><td><code>other_oled.ino</code></td><td>Stays — OLED #1 sky map.</td></tr>
+  <tr><td><code>Globals.hpp</code></td><td>Full pin-map rewrite to §4; remove RTC/LCD/serial-encoder globals.</td></tr>
+  <tr><td><code>main_sketch.ino</code></td><td><code>setup()</code>: init ESP32Encoder ×3, ADS1115, MCP23017, BluetoothSerial, 2× SSD1306; remove RTC / Serial1-2-3. Loop timer structure unchanged.</td></tr>
+</table>
+
+<!-- ===================== 10 ===================== -->
+<h2 id="keep">10 · What stays identical</h2>
+<p>Astronomy math (<code>calculateEverything</code>, Ephemeris — now with true 64-bit doubles),
+the calibration flow, the backlash-compensation algorithm, the star catalog, and the
+<strong>entire Bluetooth JSON protocol</strong>. The Android app needs no changes.</p>
+
+<!-- ===================== 11 ===================== -->
+<h2 id="scope">11 · Optional / Phase 2</h2>
+<ul>
+  <li><strong>NVS calibration persistence</strong> — re-enable the stubbed EEPROM save/load using
+  ESP32 <code>Preferences</code> so calibration survives power-off. Recommended, deferrable.</li>
+  <li><strong>WiFi/NTP time</strong> and reviving <strong>telescope-server over TCP</strong> — enabled
+  by the hardware, not built in this port.</li>
+</ul>
+
+<!-- ===================== 12 ===================== -->
+<h2 id="open">12 · Open confirmations &amp; risks</h2>
+<h3>Open confirmations (do not block the architecture)</h3>
+<ol>
+  <li><s>TB6600 wiring</s> — <strong>resolved:</strong> rewire common-cathode; ENA wired per-axis; keep DIP switches.</li>
+  <li><s>OLED addresses</s> — <strong>resolved:</strong> 2nd OLED set to 0x3D via its <code>0x78</code>/<code>0x7A</code> jumper.</li>
+  <li><s>Power rails</s> — <strong>resolved:</strong> 24 V motors + 12 V encoders; LM1117-5.0 → 5 V (ESP32 VIN), AMS1117-3.3 → 3.3 V (I²C, pull-ups, opto common).</li>
+</ol>
+<h3>Risks</h3>
+<ul>
+  <li>2× MCP23017 (0x20 inputs / 0x21 outputs) — ample digital headroom.</li>
+  <li>BluetoothSerial + WiFi share the radio; if NTP is added, fetch time only at connect or verify coexistence.</li>
+  <li>Porting the LCD menu to OLED is the largest single code task; it is well-contained behind the existing <code>printLcd*</code> helpers.</li>
+</ul>
+
+<footer>
+  Telescope Mount ESP32 Port · design reference · 2026-07-01<br>
+  Companion to <code>docs/superpowers/specs/2026-07-01-esp32-port-design.md</code>
+</footer>
+
+</div>
+</body>
+</html>
